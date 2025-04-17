@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pflegegradrechner - Modul {{ module_id }}</title>
+    <head>
+        <!-- ... other head elements (meta, title, css link) ... -->
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
+        <!-- Make sure your own CSS link is AFTER the Google Fonts link -->
+        <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+        <!-- ... -->
+    </head>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Ensure your style.css includes styles for .explanation-toggle-icon, .explanation, .hidden, .btn, .alert -->
+</head>
+<body>
+    <div class="container">
+        {# Display flashed messages (errors, warnings) #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Inside templates/module_page.html, e.g., after <body> or inside .container -->
+<div class="progress-section">
+    <h4>Geschätzter Punktestand*</h4>
+    <div class="progress-container">
+        <div class="progress-bar-markers">
+            {# Loop through thresholds to place markers (skip PG0) #}
+            {% for grade, bounds in pflegegrad_thresholds.items() | sort %}
+                {% if grade > 0 %}
+                    {% set marker_pos = (bounds[0] / max_score * 100) | round(1) %}
+                    {# Prevent markers overlapping at edges #}
+                    {% if marker_pos > 98 %}{% set marker_pos = 98 %}{% endif %}
+                    {% if marker_pos < 2 %}{% set marker_pos = 2 %}{% endif %}
+                    <span class="marker" style="left: {{ marker_pos }}%;" data-grade="PG{{ grade }}">
+                        PG{{ grade }}*
+                        <span class="marker-value">{{ bounds[0] }} Pkt.*</span>
+                    </span>
+                {% endif %}
+            {% endfor %}
+        </div>
+        <div class="progress-bar">
+            {% set current_percentage = (current_estimated_score / max_score * 100) | round(1) %}
+            {# Cap percentage at 100 #}
+            {% if current_percentage > 100 %}{% set current_percentage = 100 %}{% endif %}
+            <div class="progress-bar-fill" style="width: {{ current_percentage }}%;">
+                <span class="current-score-label">{{ current_estimated_score | round(1) }} Pkt.*</span>
+            </div>
+        </div>
+    </div>
+    <p class="progress-note">*Dies ist eine Schätzung basierend auf den bisherigen Eingaben und ersetzt nicht die offizielle Begutachtung.</p>
+</div>
+<hr class="progress-separator"> {# Optional separator #}
+
+{# The rest of the module page content (flashed messages, form, etc.) follows #}
+{# ... existing code ... #}
+
+        <h1>{{ module.name }} (Modul {{ module_id }} von {{ total_modules }})</h1>
+
+        <form method="post" action="{{ url_for('module_page', module_id=module_id) }}">
+            {% for question in module.questions %}
+                {% set question_index = loop.index0 %}
+                {% set answer_key = question_index|string %}
+                {# Get the previously selected score for this question, if any #}
+                {% set selected_score = current_answers.get(answer_key, {}).get('score') if current_answers.get(answer_key) is not none else None %}
+
+                <div class="question">
+                    <p>
+                        <strong>{{ question.question }}</strong>
+                        <button type="button" class="explanation-toggle-icon" onclick="toggleExplanation(this)" title="Erklärung anzeigen/verbergen">?</button>
+                    </p>
+                    <div class="explanation hidden">
+                        <p><strong>Allgemeine Erklärung:</strong> {{ question.explanation }}</p>
+                        <hr>
+                        <p><strong>Erklärung der Antwortoptionen:</strong></p>
+                        <ul>
+                            {% for option in question.options %}
+                                {% if option.option_explanation %}
+                                    <li><strong>{{ option.text }}:</strong> {{ option.option_explanation }}</li>
+                                {% endif %}
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <div class="options">
+                        {% for option in question.options %}
+                        <label>
+                            <input type="radio"
+                                   name="module_{{ module_id }}_question_{{ question_index }}"
+                                   value="{{ option.score }}"
+                                   {# Check if this option was previously selected #}
+                                   {% if selected_score is not none and option.score == selected_score %}checked{% endif %}
+                                   required> {# Keep required for client-side hint, but server validates #}
+                            {{ option.text }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endfor %}
+
+            <div class="navigation-buttons" style="margin-top: 30px; display: flex; justify-content: space-between;">
+                {# Previous Button #}
+                {% if module_id > 1 %}
+                    <a href="{{ url_for('module_page', module_id=module_id-1) }}" class="btn btn-secondary">&laquo; Zurück</a>
+                {% else %}
+                    {# Placeholder or disable #}
+                    <span></span> {# Keep spacing consistent #}
+                {% endif %}
+
+                {# Next/Submit Button #}
+                <button type="submit" class="btn btn-primary">
+                    {% if module_id < total_modules %}
+                        Weiter &raquo;
+                    {% else %}
+                        Berechnung starten
+                    {% endif %}
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Function to toggle explanation visibility (same as before)
+        function toggleExplanation(buttonElement) {
+            const explanationDiv = buttonElement.closest('p').nextElementSibling;
+            if (explanationDiv && explanationDiv.classList.contains('explanation')) {
+                explanationDiv.classList.toggle('hidden');
+            }
+        }
+    </script>
+</body>
+</html>

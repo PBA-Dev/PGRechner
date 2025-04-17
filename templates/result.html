@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pflegegradrechner - Ergebnis</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Your Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- Removed duplicate <head> and inline <style> block, assuming styles are in style.css -->
+</head>
+<body>
+    <script id="result-data" type="application/json">
+        {{ result | tojson | safe }}
+    </script>
+    <div class="container">
+        <h1>Ergebnis der Pflegegrad-Einschätzung</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Progress Bar Section -->
+        <div class="progress-section">
+            <h4>Finaler Gesamtpunktestand*</h4> {# Changed title slightly #}
+            <div class="progress-container">
+                <div class="progress-bar-markers">
+                    {# Loop through thresholds (PG 1-5) #}
+                    {% for grade, bounds in pflegegrad_thresholds.items() | sort %}
+                        {% if grade > 0 %}
+                            {% set marker_pos = (bounds[0] / max_score * 100) | round(1) %}
+                            {# Clamp marker positions to prevent overlap at edges #}
+                            {% if marker_pos > 98 %}{% set marker_pos = 98 %}{% endif %}
+                            {% if marker_pos < 2 %}{% set marker_pos = 2 %}{% endif %}
+                            <span class="marker" style="left: {{ marker_pos }}%;" data-grade="PG{{ grade }}">
+                                PG{{ grade }}*
+                                <span class="marker-value">{{ bounds[0] }} Pkt.*</span>
+                            </span>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                <div class="progress-bar">
+                    {# Use final score from result object #}
+                    {% set final_percentage = (result.final_total_score / max_score * 100) | round(1) %}
+                    {% if final_percentage > 100 %}{% set final_percentage = 100 %}{% endif %}
+                    <div class="progress-bar-fill" style="width: {{ final_percentage }}%;">
+                        <span class="current-score-label">{{ result.final_total_score | round(1) }} Pkt.*</span>
+                    </div>
+                </div>
+            </div>
+            <p class="progress-note">*Dies ist eine Schätzung basierend auf den Eingaben und ersetzt nicht die offizielle Begutachtung.</p>
+        </div>
+        <hr class="progress-separator">
+
+        <!-- Summary Section -->
+        <div class="summary">
+            <h2>Zusammenfassung</h2>
+            <p><strong>Gesamtpunktzahl (für Pflegegrad):</strong> {{ result.final_total_score }}</p>
+            <p><strong>Ermittelter Pflegegrad:</strong> {{ result.pflegegrad if result.pflegegrad > 0 else "Kein Pflegegrad (unter 12.5 Punkte)" }}</p>
+            <p><em>(Pflegegradgrenzen:
+                {% for grade, bounds in pflegegrad_thresholds.items() | sort %}
+                    {% if grade > 0 %} {# Display PG 1-5 #}
+                        PG{{ grade }}: {{ bounds[0] }}
+                        {% if grade == 5 %}+{% else %}-{{ bounds[1] }}{% endif %} Punkte
+                        {# Logic to add comma correctly, accounting for skipping PG0 #}
+                        {% set num_grades_shown = pflegegrad_thresholds|length -1 %}
+                        {% if not loop.last and loop.index < num_grades_shown %}, {% endif %}
+                    {% endif %}
+                {% endfor %})
+            </em></p>
+        </div>
+
+        <!-- Details Section -->
+        <div class="details">
+            <h2>Detailergebnisse nach Modulen</h2>
+            {# Iterate based on sorted module IDs present in the answers #}
+            {% for module_id_str in result.answers.keys() | sort %}
+                {% set module_id = module_id_str | int %}
+                {% set module_info = modules.get(module_id) %}
+                {% set module_answers = result.answers.get(module_id_str) %}
+                {# Ensure module info exists and there are answers for it #}
+                {% if module_info and module_answers %}
+
+                    {# === THIS IS THE UPDATED BLOCK === #}
+                    <div class="module-result">
+                        <h3>{{ module_info.name }}</h3>
+                        {# Display raw points for the module #}
+                        <p><strong>Rohpunkte:</strong> {{ result.module_scores_raw.get(module_id_str, 0.0) | round(1) }}</p>
+
+                        {# Display the determined weighted score point for this module #}
+                        {% set weighted_score_point = result.module_scores_weighted.get(module_id_str, 0.0) %}
+                        <p><strong>Gewichtete Punkte (aus Tabelle):</strong> {{ weighted_score_point }}</p>
+
+                        {# Add note about M2/M3 contribution #}
+                        {% set contribution_note = "" %}
+                        {% if module_id_str == '2' or module_id_str == '3' %}
+                            {% if module_id == result.which_module_contributed_m2_m3 %}
+                                {% set contribution_note = "(Dieser Wert zählt für die Gesamtpunktzahl)" %}
+                            {% else %}
+                                {% set contribution_note = "(Niedrigerer Wert aus M2/M3 - Nicht für Gesamtpunktzahl berücksichtigt)" %}
+                            {% endif %}
+                        {% endif %}
+                        {% if contribution_note %}
+                            <p class="contribution-note">{{ contribution_note }}</p>
+                        {% endif %}
+
+                        <h4>Ihre Antworten:</h4>
+                        <ul>
+                            {# Sort answers by question index #}
+                            {% for q_idx_str, answer_data in module_answers.items() | sort %}
+                                 {% if answer_data %} {# Check if answer_data is not None #}
+                                    <li>
+                                        <strong>Frage:</strong> {{ answer_data.question }}<br>
+                                        <strong>Antwort:</strong> {{ answer_data.answer_text }} ({{ answer_data.score }} Rohpunkte) {# Clarify these are raw points #}
+                                    </li>
+                                 {% else %}
+                                     <li>
+                                         <strong>Frage {{ q_idx_str | int + 1 }}:</strong> Nicht beantwortet
+                                     </li>
+                                 {% endif %}
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <hr>
+                    {# === END OF UPDATED BLOCK === #}
+
+                {% endif %} {# End if module_info and module_answers #}
+            {% endfor %} {# End loop through modules #}
+        </div>
+
+        <!-- Actions Section -->
+        <div class="actions"> {# Removed inline style, assuming it's in style.css #}
+            <a href="{{ url_for('intro') }}" class="btn btn-secondary">Neue Berechnung starten</a>
+            {# Consider adding PDF generation logic back if needed #}
+            {# <a href="{{ url_for('generate_pdf') }}" class="btn btn-primary pdf-btn" target="_blank">PDF generieren</a> #}
+            <button id="print-pdf-button" class="btn btn-primary pdf-btn">PDF Drucken</button>
+        </div>
+    </div> {# End container #}
+    <script>
+        document.getElementById('print-pdf-button').addEventListener('click', function() {
+            const resultData = JSON.parse(document.getElementById('result-data').textContent);
+            window.print();
+        });
+    </script>
+</body>
+</html>
