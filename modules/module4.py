@@ -1,125 +1,155 @@
-"""
-Module 4: Selbstversorgung
-Weight: 40% (0.4)
-"""
+# modules/module4.py
 
 module4 = {
-    "name": "Modul 4: Selbstversorgung",
-    "weight": 0.4,
-    "questions": [
-        # --- Bereich: Körperpflege ---
+    'id': 4,
+    'name': 'Modul 4: Selbstversorgung',
+    'weight': 40, # Weight in percent for final score calculation
+    'questions': [
         {
-            "question": "4.1 Waschen des vorderen Oberkörpers",
-            "explanation": "Bewertet wird die Fähigkeit, Gesicht, Hals, Arme, Hände und vorderen Brust-/Bauchbereich zu waschen.",
-            "options": [
-                {"score": 0, "text": "Selbstständig", "option_explanation": "Person kann den Bereich ohne personelle Hilfe waschen."},
-                {"score": 1, "text": "Überwiegend selbstständig", "option_explanation": "Person benötigt nur geringe Hilfe (z.B. Wasser bereitstellen, Anleitung, Waschen schwer erreichbarer Stellen)."},
-                {"score": 2, "text": "Überwiegend unselbstständig", "option_explanation": "Person benötigt umfangreiche Hilfe (z.B. Waschen großer Teile des Bereichs)."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Person muss vollständig von anderen gewaschen werden."}
+            'id': '4.1',
+            'text': 'Waschen des vorderen Oberkörpers',
+            'explanation': 'Beinhaltet das Waschen von Händen, Gesicht, Hals, Armen, Achselhöhlen und vorderem Oberkörper.',
+            'options': [
+                {'text': 'Selbständig', 'score': 0},
+                {'text': 'Überwiegend selbständig', 'score': 1},
+                {'text': 'Überwiegend unselbständig', 'score': 2},
+                {'text': 'Unselbständig', 'score': 3}
             ]
         },
         {
-            "question": "4.2 Körperpflege im Bereich des Kopfes",
-            "explanation": "Bewertet wird die Fähigkeit zum Kämmen, zur Zahnpflege/Prothesenreinigung und zum Rasieren.",
-            "options": [
-                {"score": 0, "text": "Selbstständig", "option_explanation": "Person kann alle genannten Tätigkeiten ohne personelle Hilfe durchführen."},
-                {"score": 1, "text": "Überwiegend selbstständig", "option_explanation": "Person benötigt nur geringe Hilfe (z.B. Zahnpasta auftragen, Utensilien anreichen, Teilbereiche übernehmen)."},
-                {"score": 2, "text": "Überwiegend unselbstständig", "option_explanation": "Person benötigt umfangreiche Hilfe (z.B. Übernahme der meisten Tätigkeiten)."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Alle Tätigkeiten müssen vollständig von anderen übernommen werden."}
+            'id': '4.2',
+            'text': 'Körperpflege im Bereich des Kopfes',
+            'explanation': 'Beinhaltet Kämmen, Zahnpflege/Prothesenreinigung, Rasieren.',
+            'options': [
+                {'text': 'Selbständig', 'score': 0},
+                {'text': 'Überwiegend selbständig', 'score': 1},
+                {'text': 'Überwiegend unselbständig', 'score': 2},
+                {'text': 'Unselbständig', 'score': 3}
             ]
         },
         {
-            "question": "4.3 Waschen des Intimbereichs",
-            "explanation": "Bewertet wird die Fähigkeit, den Intimbereich (vorne und hinten) zu waschen und abzutrocknen.",
-            "options": [
-                {"score": 0, "text": "Selbstständig", "option_explanation": "Person kann den Intimbereich ohne personelle Hilfe waschen und abtrocknen."},
-                {"score": 1, "text": "Überwiegend selbstständig", "option_explanation": "Person benötigt nur geringe Hilfe (z.B. Anleitung, Waschlappen anreichen, Teilbereiche übernehmen)."},
-                {"score": 2, "text": "Überwiegend unselbstständig", "option_explanation": "Person benötigt umfangreiche Hilfe (z.B. Waschen großer Teile des Bereichs)."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Person muss im Intimbereich vollständig von anderen gewaschen werden."}
+            'id': '4.3',
+            'text': 'Waschen des Intimbereichs',
+            'explanation': 'Beinhaltet das Waschen des Intimbereichs und das Abtrocknen.',
+            'options': [
+                {'text': 'Selbständig', 'score': 0},
+                {'text': 'Überwiegend selbständig', 'score': 1},
+                {'text': 'Überwiegend unselbständig', 'score': 2},
+                {'text': 'Unselbständig', 'score': 3}
             ]
         },
         {
-            "question": "4.4 Duschen und Baden einschließlich Waschen der Haare",
-            "explanation": "Bewertet wird die Fähigkeit, den gesamten Körper (einschließlich Rücken und Füße) und die Haare zu waschen, entweder in der Dusche oder Badewanne.",
-            "options": [
-                {"score": 0, "text": "Selbstständig", "option_explanation": "Person kann ohne personelle Hilfe duschen/baden und Haare waschen."},
-                {"score": 1, "text": "Überwiegend selbstständig", "option_explanation": "Person benötigt nur geringe Hilfe (z.B. Ein-/Ausstiegshilfe, Rücken waschen, Anleitung)."},
-                {"score": 2, "text": "Überwiegend unselbstständig", "option_explanation": "Person benötigt umfangreiche Hilfe (z.B. Waschen großer Körperbereiche, ständige Aufsicht/Unterstützung)."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Person muss vollständig geduscht/gebadet werden oder Ganzkörperwäsche am Waschbecken/im Bett ist nötig."}
-            ]
-        },
-        # --- Bereich: Kleiden ---
-        {
-            "question": "4.5 An- und Auskleiden des Oberkörpers",
-            "explanation": "Bewertet wird die Fähigkeit, Kleidung für den Oberkörper (Hemd, Pullover, BH etc.) an- und auszuziehen.",
-            "options": [
-                {"score": 0, "text": "Selbstständig", "option_explanation": "Person kann sich ohne personelle Hilfe am Oberkörper an- und auskleiden."},
-                {"score": 1, "text": "Überwiegend selbstständig", "option_explanation": "Person benötigt nur geringe Hilfe (z.B. Kleidung zurechtlegen, Knöpfe/Reißverschluss schließen, über Kopf helfen)."},
-                {"score": 2, "text": "Überwiegend unselbstständig", "option_explanation": "Person benötigt umfangreiche Hilfe (z.B. An-/Ausziehen großer Kleidungsstücke)."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Person muss am Oberkörper vollständig an- und ausgekleidet werden."}
+            'id': '4.4',
+            'text': 'Duschen und Baden einschließlich Waschen der Haare',
+            'explanation': 'Umfasst Ganzkörperwäsche in Dusche oder Badewanne, einschließlich Haare waschen und Abtrocknen.',
+            'options': [
+                {'text': 'Selbständig', 'score': 0},
+                {'text': 'Überwiegend selbständig', 'score': 1},
+                {'text': 'Überwiegend unselbständig', 'score': 2},
+                {'text': 'Unselbständig', 'score': 3}
             ]
         },
         {
-            "question": "4.6 An- und Auskleiden des Unterkörpers",
-            "explanation": "Bewertet wird die Fähigkeit, Kleidung für den Unterkörper (Hose, Rock, Strümpfe, Schuhe) an- und auszuziehen.",
-            "options": [
-                {"score": 0, "text": "Selbstständig", "option_explanation": "Person kann sich ohne personelle Hilfe am Unterkörper an- und auskleiden."},
-                {"score": 1, "text": "Überwiegend selbstständig", "option_explanation": "Person benötigt nur geringe Hilfe (z.B. Strümpfe anziehen, Schuhe binden, Reißverschluss schließen)."},
-                {"score": 2, "text": "Überwiegend unselbstständig", "option_explanation": "Person benötigt umfangreiche Hilfe (z.B. Hose hochziehen, An-/Ausziehen im Liegen)."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Person muss am Unterkörper vollständig an- und ausgekleidet werden."}
-            ]
-        },
-        # --- Bereich: Essen und Trinken ---
-        {
-            "question": "4.7 Essen",
-            "explanation": "Bewertet wird die Fähigkeit, mundgerecht zubereitete Nahrung aufzunehmen, Besteck zu verwenden und zum Mund zu führen.",
-            "options": [
-                {"score": 0, "text": "Selbstständig", "option_explanation": "Person kann ohne personelle Hilfe essen."},
-                {"score": 1, "text": "Überwiegend selbstständig", "option_explanation": "Person benötigt nur geringe Hilfe (z.B. Nahrung klein schneiden, Becher halten, motivieren)."},
-                {"score": 2, "text": "Überwiegend unselbstständig", "option_explanation": "Person benötigt umfangreiche Hilfe (z.B. Nahrung anreichen, füttern)."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Person muss vollständig gefüttert werden (auch bei Sondenernährung relevant)."}
+            'id': '4.5',
+            'text': 'An- und Auskleiden des Oberkörpers',
+            'explanation': 'Beinhaltet das An- und Ausziehen von Hemd, Bluse, Pullover, Unterhemd, BH etc.',
+            'options': [
+                {'text': 'Selbständig', 'score': 0},
+                {'text': 'Überwiegend selbständig', 'score': 1},
+                {'text': 'Überwiegend unselbständig', 'score': 2},
+                {'text': 'Unselbständig', 'score': 3}
             ]
         },
         {
-            "question": "4.8 Trinken",
-            "explanation": "Bewertet wird die Fähigkeit, Getränke selbstständig aufzunehmen und aus einem Glas/Becher/Tasse zu trinken.",
-            "options": [
-                {"score": 0, "text": "Selbstständig", "option_explanation": "Person kann ohne personelle Hilfe trinken."},
-                {"score": 1, "text": "Überwiegend selbstständig", "option_explanation": "Person benötigt nur geringe Hilfe (z.B. Getränk einschenken, Gefäß halten/anreichen)."},
-                {"score": 2, "text": "Überwiegend unselbstständig", "option_explanation": "Person benötigt umfangreiche Hilfe (z.B. Getränk anreichen, beim Trinken helfen)."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Person muss Getränke vollständig eingegeben bekommen."}
-            ]
-        },
-        # --- Bereich: Ausscheidungen ---
-        {
-            "question": "4.9 Benutzen einer Toilette oder eines Toilettenstuhls",
-            "explanation": "Bewertet wird die Fähigkeit, zur Toilette zu gehen/fahren, sich hinzusetzen/aufzustehen, sich nach dem Toilettengang zu reinigen und Kleidung zu richten.",
-            "options": [
-                {"score": 0, "text": "Selbstständig", "option_explanation": "Person kann die Toilette/den Toilettenstuhl ohne personelle Hilfe benutzen."},
-                {"score": 1, "text": "Überwiegend selbstständig", "option_explanation": "Person benötigt nur geringe Hilfe (z.B. Hilfe beim Transfer, Kleidung richten, Intimhygiene teilweise)."},
-                {"score": 2, "text": "Überwiegend unselbstständig", "option_explanation": "Person benötigt umfangreiche Hilfe (z.B. Transfer, Intimhygiene größtenteils)."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Person ist vollständig auf Hilfe angewiesen oder benötigt Versorgung mit Urinflasche/Bettpfanne."}
+            'id': '4.6',
+            'text': 'An- und Auskleiden des Unterkörpers',
+            'explanation': 'Beinhaltet das An- und Ausziehen von Hose, Rock, Unterhose, Strümpfen, Schuhen.',
+            'options': [
+                {'text': 'Selbständig', 'score': 0},
+                {'text': 'Überwiegend selbständig', 'score': 1},
+                {'text': 'Überwiegend unselbständig', 'score': 2},
+                {'text': 'Unselbständig', 'score': 3}
             ]
         },
         {
-            "question": "4.10 Bewältigung der Folgen einer Harninkontinenz und Umgang mit Dauerkatheter/Urostoma",
-            "explanation": "Bewertet wird die Fähigkeit, mit Inkontinenzmaterial (Vorlagen, Windeln) umzugehen oder einen Katheter/Stoma selbstständig zu versorgen.",
-            "options": [
-                {"score": 0, "text": "Selbstständig/Kontinent", "option_explanation": "Person ist kontinent oder kann Inkontinenz-/Stomaversorgung ohne personelle Hilfe durchführen."},
-                {"score": 1, "text": "Überwiegend selbstständig", "option_explanation": "Person benötigt nur geringe Hilfe (z.B. Material anreichen, Kontrolle, kleine Hilfestellungen)."},
-                {"score": 2, "text": "Überwiegend unselbstständig", "option_explanation": "Person benötigt umfangreiche Hilfe (z.B. Wechseln des Materials, Versorgung des Systems)."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Inkontinenz-/Stomaversorgung muss vollständig von anderen übernommen werden."}
+            'id': '4.7',
+            'text': 'Mundgerechtes Zubereiten der Nahrung und Eingießen von Getränken',
+            'explanation': 'Beinhaltet das Zerkleinern von Speisen, Öffnen von Verpackungen, Eingießen von Getränken.',
+            'options': [
+                {'text': 'Selbständig', 'score': 0},
+                {'text': 'Überwiegend selbständig', 'score': 1},
+                {'text': 'Überwiegend unselbständig', 'score': 2},
+                {'text': 'Unselbständig', 'score': 3}
             ]
         },
         {
-            "question": "4.11 Bewältigung der Folgen einer Stuhlinkontinenz und Umgang mit Stoma",
-            "explanation": "Bewertet wird die Fähigkeit, mit Inkontinenzmaterial umzugehen oder ein Stoma selbstständig zu versorgen.",
-            "options": [
-                {"score": 0, "text": "Selbstständig/Kontinent", "option_explanation": "Person ist kontinent oder kann Inkontinenz-/Stomaversorgung ohne personelle Hilfe durchführen."},
-                {"score": 1, "text": "Überwiegend selbstständig", "option_explanation": "Person benötigt nur geringe Hilfe (z.B. Material anreichen, Kontrolle, kleine Hilfestellungen)."},
-                {"score": 2, "text": "Überwiegend unselbstständig", "option_explanation": "Person benötigt umfangreiche Hilfe (z.B. Wechseln des Materials, Versorgung des Systems)."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Inkontinenz-/Stomaversorgung muss vollständig von anderen übernommen werden."}
+            'id': '4.8',
+            'text': 'Essen',
+            'explanation': 'Beinhaltet das Führen des Essens zum Mund, Abbeißen, Kauen, Schlucken.',
+            'options': [
+                {'text': 'Selbständig', 'score': 0},
+                {'text': 'Überwiegend selbständig', 'score': 1},
+                {'text': 'Überwiegend unselbständig', 'score': 2},
+                {'text': 'Unselbständig', 'score': 3}
             ]
-        }
+        },
+        {
+            'id': '4.9',
+            'text': 'Trinken',
+            'explanation': 'Beinhaltet das Ergreifen des Trinkgefäßes, Führen zum Mund, Trinken.',
+            'options': [
+                {'text': 'Selbständig', 'score': 0},
+                {'text': 'Überwiegend selbständig', 'score': 1},
+                {'text': 'Überwiegend unselbständig', 'score': 2},
+                {'text': 'Unselbständig', 'score': 3}
+            ]
+        },
+        {
+            'id': '4.10',
+            'text': 'Benutzen einer Toilette oder eines Toilettenstuhls',
+            'explanation': 'Umfasst Hinsetzen, Aufstehen, Sitzen während der Blasen-/Darmentleerung, Intimhygiene, Richten der Kleidung.',
+            'options': [
+                {'text': 'Selbständig', 'score': 0},
+                {'text': 'Überwiegend selbständig', 'score': 1},
+                {'text': 'Überwiegend unselbständig', 'score': 2},
+                {'text': 'Unselbständig', 'score': 3}
+            ]
+        },
+        {
+            'id': '4.11',
+            'text': 'Bewältigen der Folgen einer Harninkontinenz und Umgang mit Dauerkatheter und Urostoma',
+            'explanation': 'Beinhaltet das Wechseln von Inkontinenzmaterial, Umgang mit Katheter/Urostoma, Entsorgung.',
+            'options': [
+                {'text': 'Selbständig', 'score': 0},
+                {'text': 'Überwiegend selbständig', 'score': 1},
+                {'text': 'Überwiegend unselbständig', 'score': 2},
+                {'text': 'Unselbständig', 'score': 3}
+            ]
+        },
+        {
+            'id': '4.12',
+            'text': 'Bewältigen der Folgen einer Stuhlinkontinenz und Umgang mit Stoma',
+            'explanation': 'Beinhaltet das Wechseln von Inkontinenzmaterial, Umgang mit Stoma, Entsorgung.',
+            'options': [
+                {'text': 'Selbständig', 'score': 0},
+                {'text': 'Überwiegend selbständig', 'score': 1},
+                {'text': 'Überwiegend unselbständig', 'score': 2},
+                {'text': 'Unselbständig', 'score': 3}
+            ]
+        },
+        # --- NEW QUESTION ---
+        {
+            'id': '4.13',
+            'text': 'Ernährung parenteral oder über Sonde',
+            'explanation': 'Bewertung der Notwendigkeit künstlicher Ernährung.',
+            'options': [
+                {'text': 'Keine, nicht täglich, nicht auf Dauer', 'score': 0}, # Assuming 0 points based on doc example 'x' placement
+                {'text': 'Täglich, zusätzlich zu oraler Nahrung', 'score': 1}, # Assuming 1 point
+                {'text': 'Ausschließlich oder nahezu ausschließlich', 'score': 3} # Assuming 3 points (needs verification)
+                # NOTE: The exact scoring (0, 1, 3?) needs verification against official NBA guidelines.
+                # The document example only shows 'x' under the first column (0 points).
+            ]
+        },
+        # --- END NEW QUESTION ---
     ]
 }

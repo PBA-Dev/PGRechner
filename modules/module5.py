@@ -1,141 +1,177 @@
-"""
-Module 5: Bewältigung von und selbstständiger Umgang mit krankheits- oder
-          therapiebedingten Anforderungen und Belastungen
-Weight: 20% (0.2)
-"""
+# modules/module5.py
+
+# NOTE: This structure needs the specific scoring logic based on frequency rules.
+# The 'score' in options might be replaced or supplemented by frequency inputs later.
 
 module5 = {
-    "name": "Modul 5: Bewältigung von krankheits- oder therapiebedingten Anforderungen",
-    "weight": 0.2,
-    "questions": [
-        # --- Bereich: Medikation ---
+    'id': 5,
+    'name': 'Modul 5: Bewältigung von und selbständiger Umgang mit krankheits- oder therapiebedingten Anforderungen und Belastungen',
+    'weight': 20, # Weight in percent for final score calculation
+    'parts': [ # Organize by parts as in the document
         {
-            "question": "5.1 Umgang mit Medikamenten",
-            "explanation": "Bewertet wird die Fähigkeit, ärztlich verordnete Medikamente selbstständig und zuverlässig einzunehmen (Stellen, Dosieren, Anwenden).",
-            "options": [
-                {"score": 0, "text": "Selbstständig", "option_explanation": "Person kann Medikamente ohne personelle Hilfe oder nur mit Erinnerung einnehmen."},
-                {"score": 1, "text": "Überwiegend selbstständig/Hilfe beim Richten/Aufsicht", "option_explanation": "Medikamente müssen gerichtet oder die Einnahme beaufsichtigt werden."},
-                {"score": 2, "text": "Überwiegend unselbstständig/Hilfe bei Einnahme", "option_explanation": "Medikamente müssen (teilweise) verabreicht werden."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Medikamente müssen vollständig von anderen verabreicht werden."}
-                # Scoring often relates to *who* performs the action (person, lay helper, professional)
-            ]
-        },
-        # --- Bereich: Injektionen, Blutzuckermessung ---
-        {
-            "question": "5.2 Blutzuckermessung und Insulingabe",
-            "explanation": "Bewertet wird die Fähigkeit zur selbstständigen Blutzuckermessung und/oder subkutanen Insulininjektion.",
-            "options": [
-                {"score": 0, "text": "Selbstständig/Nicht relevant", "option_explanation": "Person kann dies selbstständig durchführen oder benötigt es nicht."},
-                {"score": 1, "text": "Überwiegend selbstständig/Anleitung/Aufsicht", "option_explanation": "Person benötigt Anleitung, Aufsicht oder geringe Hilfe."},
-                {"score": 2, "text": "Überwiegend unselbstständig/Teilweise Übernahme", "option_explanation": "Messung/Injektion muss teilweise übernommen werden."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Messung/Injektion muss vollständig von anderen durchgeführt werden."}
-            ]
-        },
-        # --- Bereich: Verbandwechsel, Wundversorgung ---
-        {
-            "question": "5.3 Versorgung von Wunden oder Drainagen",
-            "explanation": "Bewertet wird die Fähigkeit zur selbstständigen Versorgung von Wunden (z.B. Verbandwechsel) oder Drainagen.",
-            "options": [
-                {"score": 0, "text": "Selbstständig/Nicht relevant", "option_explanation": "Person kann dies selbstständig durchführen oder benötigt es nicht."},
-                {"score": 1, "text": "Überwiegend selbstständig/Anleitung/Aufsicht", "option_explanation": "Person benötigt Anleitung, Aufsicht oder geringe Hilfe."},
-                {"score": 2, "text": "Überwiegend unselbstständig/Teilweise Übernahme", "option_explanation": "Versorgung muss teilweise übernommen werden."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Versorgung muss vollständig von anderen durchgeführt werden."}
-            ]
-        },
-         {
-            "question": "5.4 Versorgung von Stomata (Tracheostoma, Uro-/Enterostoma)",
-            "explanation": "Bewertet wird die Fähigkeit zur selbstständigen Versorgung künstlicher Körperöffnungen (Reinigung, Materialwechsel).",
-            "options": [
-                {"score": 0, "text": "Selbstständig/Nicht relevant", "option_explanation": "Person kann dies selbstständig durchführen oder benötigt es nicht."},
-                {"score": 1, "text": "Überwiegend selbstständig/Anleitung/Aufsicht", "option_explanation": "Person benötigt Anleitung, Aufsicht oder geringe Hilfe."},
-                {"score": 2, "text": "Überwiegend unselbstständig/Teilweise Übernahme", "option_explanation": "Versorgung muss teilweise übernommen werden."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Versorgung muss vollständig von anderen durchgeführt werden."}
-            ]
-        },
-        # --- Bereich: Therapiemaßnahmen ---
-        {
-            "question": "5.5 Regelmäßige Einreibungen oder Kälte-/Wärmeanwendungen",
-            "explanation": "Bewertet wird die Fähigkeit zur selbstständigen Durchführung ärztlich verordneter Einreibungen oder Kälte-/Wärmeanwendungen.",
-            "options": [
-                {"score": 0, "text": "Selbstständig/Nicht relevant", "option_explanation": "Person kann dies selbstständig durchführen oder benötigt es nicht."},
-                {"score": 1, "text": "Überwiegend selbstständig/Anleitung/Aufsicht", "option_explanation": "Person benötigt Anleitung, Aufsicht oder geringe Hilfe."},
-                {"score": 2, "text": "Überwiegend unselbstständig/Teilweise Übernahme", "option_explanation": "Anwendung muss teilweise übernommen werden."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Anwendung muss vollständig von anderen durchgeführt werden."}
-            ]
-        },
-        {
-            "question": "5.6 Messung von Körperzuständen (z.B. Blutdruck, Puls)",
-            "explanation": "Bewertet wird die Fähigkeit zur selbstständigen Messung und Dokumentation von Vitalzeichen oder anderen Körperzuständen.",
-            "options": [
-                {"score": 0, "text": "Selbstständig/Nicht relevant", "option_explanation": "Person kann dies selbstständig durchführen oder benötigt es nicht."},
-                {"score": 1, "text": "Überwiegend selbstständig/Anleitung/Aufsicht", "option_explanation": "Person benötigt Anleitung, Aufsicht oder geringe Hilfe."},
-                {"score": 2, "text": "Überwiegend unselbstständig/Teilweise Übernahme", "option_explanation": "Messung/Dokumentation muss teilweise übernommen werden."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Messung/Dokumentation muss vollständig von anderen durchgeführt werden."}
-            ]
-        },
-        {
-            "question": "5.7 Körperbezogene Therapien (z.B. Inhalation, Absaugen)",
-            "explanation": "Bewertet wird die Fähigkeit zur selbstständigen Durchführung spezifischer körperbezogener Therapien.",
-            "options": [
-                {"score": 0, "text": "Selbstständig/Nicht relevant", "option_explanation": "Person kann dies selbstständig durchführen oder benötigt es nicht."},
-                {"score": 1, "text": "Überwiegend selbstständig/Anleitung/Aufsicht", "option_explanation": "Person benötigt Anleitung, Aufsicht oder geringe Hilfe."},
-                {"score": 2, "text": "Überwiegend unselbstständig/Teilweise Übernahme", "option_explanation": "Therapie muss teilweise übernommen werden."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Therapie muss vollständig von anderen durchgeführt werden."}
-            ]
-        },
-        # --- Bereich: Arztbesuche, Organisation ---
-        {
-            "question": "5.8 Zeit- und technikintensive Maßnahmen im häuslichen Bereich",
-            "explanation": "Bewertet wird der Aufwand für spezielle Maßnahmen wie z.B. Beatmung, Dialyse im häuslichen Umfeld.",
-            "options": [
-                {"score": 0, "text": "Nicht relevant/Kein oder geringer Aufwand", "option_explanation": "Keine solchen Maßnahmen oder nur geringer, seltener Aufwand."},
-                # Scoring here often depends on frequency/duration (e.g., täglich <1h, 1-3h, >3h)
-                # Simplified for now:
-                {"score": 1, "text": "Mäßiger Aufwand", "option_explanation": "Regelmäßiger, aber zeitlich begrenzter Aufwand."},
-                {"score": 2, "text": "Hoher Aufwand", "option_explanation": "Täglicher, zeitintensiver Aufwand."},
-                {"score": 3, "text": "Sehr hoher Aufwand", "option_explanation": "Sehr zeitintensive oder komplexe Maßnahmen."}
+            'part_id': '5.1',
+            'name': 'Teil 1: Medikation, Injektionen, Versorgung intravenöser Zugänge, Absaugen und Sauerstoffgabe, Einreibungen, Messungen, Hilfsmittel',
+            'questions': [
+                {
+                    'id': '5.1.1',
+                    'text': 'Medikation',
+                    'explanation': 'Regelmäßige Medikamenteneinnahme.',
+                    'type': 'frequency', # Indicate this needs frequency input
+                    'options': [{'text': 'Entfällt'}, {'text': 'Selbständig'}], # Base options
+                    'frequency_units': ['pro Tag', 'pro Woche', 'pro Monat'] # Units for input
+                    # Scoring logic based on frequency needed here
+                },
+                {
+                    'id': '5.1.2',
+                    'text': 'Injektionen (subcutan und intramuskulär)',
+                    'explanation': 'Verabreichung von Injektionen.',
+                    'type': 'frequency',
+                    'options': [{'text': 'Entfällt'}, {'text': 'Selbständig'}],
+                    'frequency_units': ['pro Tag', 'pro Woche', 'pro Monat']
+                },
+                {
+                    'id': '5.1.3',
+                    'text': 'Versorgung intravenöser Zugänge (Port)',
+                    'explanation': 'Pflege und Nutzung von IV-Zugängen.',
+                     'type': 'frequency',
+                    'options': [{'text': 'Entfällt'}, {'text': 'Selbständig'}],
+                    'frequency_units': ['pro Tag', 'pro Woche', 'pro Monat']
+                },
+                {
+                    'id': '5.1.4',
+                    'text': 'Absaugen und Sauerstoffgabe',
+                    'explanation': 'Notwendigkeit von Absaugung oder Sauerstoff.',
+                     'type': 'frequency',
+                    'options': [{'text': 'Entfällt'}, {'text': 'Selbständig'}],
+                    'frequency_units': ['pro Tag', 'pro Woche', 'pro Monat']
+                },
+                {
+                    'id': '5.1.5',
+                    'text': 'Einreibungen oder Kälte- und Wärmeanwendungen',
+                    'explanation': 'Anwendung von Salben, Cremes, Kälte-/Wärmepackungen.',
+                     'type': 'frequency',
+                    'options': [{'text': 'Entfällt'}, {'text': 'Selbständig'}],
+                    'frequency_units': ['pro Tag', 'pro Woche', 'pro Monat']
+                },
+                {
+                    'id': '5.1.6',
+                    'text': 'Messung und Deutung von Körperzuständen',
+                    'explanation': 'Blutzucker-, Blutdruckmessung etc.',
+                     'type': 'frequency',
+                    'options': [{'text': 'Entfällt'}, {'text': 'Selbständig'}],
+                    'frequency_units': ['pro Tag', 'pro Woche', 'pro Monat']
+                },
+                 {
+                    'id': '5.1.7',
+                    'text': 'Körpernahe Hilfsmittel',
+                    'explanation': 'Umgang mit Prothesen, Orthesen, Kompressionsstrümpfen etc.',
+                     'type': 'frequency',
+                    'options': [{'text': 'Entfällt'}, {'text': 'Selbständig'}],
+                    'frequency_units': ['pro Tag', 'pro Woche', 'pro Monat']
+                },
             ]
         },
         {
-            "question": "5.9 Arztbesuche",
-            "explanation": "Bewertet wird die Häufigkeit von Arztbesuchen (außer Haus) aufgrund der Erkrankung/Behinderung.",
-            "options": [
-                # Scoring based on frequency
-                {"score": 0, "text": "Nicht relevant/Keine oder seltene Besuche", "option_explanation": "Keine oder weniger als 1x pro Monat."},
-                {"score": 1, "text": "Regelmäßig (1-3 Mal pro Monat)", "option_explanation": "Durchschnittlich 1-3 Arztbesuche pro Monat."},
-                {"score": 2, "text": "Häufig (wöchentlich)", "option_explanation": "Durchschnittlich wöchentliche Arztbesuche."},
-                {"score": 3, "text": "Sehr häufig (mehrmals wöchentlich)", "option_explanation": "Mehrere Arztbesuche pro Woche erforderlich."}
-            ]
+            'part_id': '5.2',
+            'name': 'Teil 2: Verbandswechsel, Stomaversorgung, Katheterisierung, Therapiemaßnahmen',
+             'questions': [
+                 {
+                    'id': '5.2.1',
+                    'text': 'Verbandswechsel und Wundversorgung',
+                    'explanation': 'Versorgung von Wunden, Anlegen von Verbänden.',
+                    'type': 'frequency',
+                    'options': [{'text': 'Entfällt'}, {'text': 'Selbständig'}],
+                    'frequency_units': ['pro Tag', 'pro Woche', 'pro Monat']
+                 },
+                 {
+                    'id': '5.2.2',
+                    'text': 'Versorgung mit Stoma',
+                    'explanation': 'Pflege und Wechsel von Stomabeuteln.',
+                    'type': 'frequency',
+                    'options': [{'text': 'Entfällt'}, {'text': 'Selbständig'}],
+                    'frequency_units': ['pro Tag', 'pro Woche', 'pro Monat']
+                 },
+                 {
+                    'id': '5.2.3',
+                    'text': 'Regelmäßige Einmalkatheterisierung und Nutzung von Abführmethoden',
+                    'explanation': 'Durchführung von Katheterisierung oder Abführmaßnahmen.',
+                    'type': 'frequency',
+                    'options': [{'text': 'Entfällt'}, {'text': 'Selbständig'}],
+                    'frequency_units': ['pro Tag', 'pro Woche', 'pro Monat']
+                 },
+                 {
+                    'id': '5.2.4',
+                    'text': 'Therapiemaßnahmen in der häuslichen Umgebung',
+                    'explanation': 'Durchführung von z.B. Physiotherapie, Ergotherapie zu Hause.',
+                    'type': 'frequency',
+                    'options': [{'text': 'Entfällt'}, {'text': 'Selbständig'}],
+                    'frequency_units': ['pro Tag', 'pro Woche', 'pro Monat']
+                 },
+             ]
         },
         {
-            "question": "5.10 Besuch anderer medizinischer oder therapeutischer Einrichtungen",
-            "explanation": "Bewertet wird die Häufigkeit von Besuchen bei Therapeuten (Physio-, Ergo-, Logo-), Dialyse, etc. (außer Haus).",
-            "options": [
-                {"score": 0, "text": "Nicht relevant/Keine oder seltene Besuche", "option_explanation": "Keine oder weniger als 1x pro Monat."},
-                {"score": 1, "text": "Regelmäßig (1-3 Mal pro Monat)", "option_explanation": "Durchschnittlich 1-3 Besuche pro Monat."},
-                {"score": 2, "text": "Häufig (wöchentlich)", "option_explanation": "Durchschnittlich wöchentliche Besuche."},
-                {"score": 3, "text": "Sehr häufig (mehrmals wöchentlich)", "option_explanation": "Mehrere Besuche pro Woche erforderlich."}
-            ]
+            'part_id': '5.3',
+            'name': 'Teil 3: Zeit- und technikintensive Maßnahmen',
+             'questions': [
+                 {
+                    'id': '5.3.1',
+                    'text': 'Zeit- und technikintensive Maßnahmen in häuslicher Umgebung',
+                    'explanation': 'z.B. Beatmung, Dialyse.',
+                    'type': 'frequency',
+                    'options': [{'text': 'Entfällt'}, {'text': 'Selbständig'}],
+                    'frequency_units': ['pro Tag', 'pro Woche', 'pro Monat'] # Check units needed
+                 },
+             ]
         },
         {
-            "question": "5.11 Zeitlicher Aufwand von Laien für Organisation/Planung",
-            "explanation": "Bewertet wird der Aufwand für Laien (Angehörige) zur Organisation von Hilfen, Terminen, Rezepten etc.",
-            "options": [
-                {"score": 0, "text": "Kein oder geringer Aufwand", "option_explanation": "Kein oder nur minimaler organisatorischer Aufwand."},
-                {"score": 1, "text": "Mäßiger Aufwand", "option_explanation": "Regelmäßiger, aber überschaubarer Aufwand."},
-                {"score": 2, "text": "Hoher Aufwand", "option_explanation": "Deutlicher, zeitintensiver organisatorischer Aufwand."},
-                {"score": 3, "text": "Sehr hoher Aufwand", "option_explanation": "Sehr umfangreicher, komplexer organisatorischer Aufwand."}
-            ]
+            'part_id': '5.4',
+            'name': 'Teil 4: Arztbesuche und andere Termine',
+             'questions': [
+                 {
+                    'id': '5.4.1',
+                    'text': 'Arztbesuche',
+                    'explanation': 'Häufigkeit von Arztbesuchen.',
+                    'type': 'frequency',
+                    'options': [{'text': 'Entfällt'}, {'text': 'Selbständig'}],
+                    'frequency_units': ['pro Woche', 'pro Monat'] # Units from doc
+                 },
+                 {
+                    'id': '5.4.2',
+                    'text': 'Besuch anderer medizinischer oder therapeutischer Einrichtungen (bis zu drei Stunden)',
+                    'explanation': 'Termine bei Therapeuten, Sanitätshaus etc.',
+                    'type': 'frequency',
+                    'options': [{'text': 'Entfällt'}, {'text': 'Selbständig'}],
+                    'frequency_units': ['pro Woche', 'pro Monat']
+                 },
+                 {
+                    'id': '5.4.3',
+                    'text': 'Zeitlich ausgedehnte Besuche anderer medizinischer und therapeutischer Einrichtungen (länger als drei Stunden)',
+                    'explanation': 'Längere Termine, z.B. Tagesklinik.',
+                    'type': 'frequency',
+                    'options': [{'text': 'Entfällt'}, {'text': 'Selbständig'}],
+                    'frequency_units': ['pro Woche', 'pro Monat']
+                 },
+             ]
         },
-         {
-            "question": "5.12 Einhaltung einer Diät oder anderer krankheits- oder therapiebedingter Verhaltensvorschriften",
-            "explanation": "Bewertet wird die Fähigkeit, eine verordnete Diät oder spezifische Verhaltensregeln (z.B. Trinkmengenbeschränkung) selbstständig einzuhalten.",
-            "options": [
-                {"score": 0, "text": "Selbstständig/Nicht relevant", "option_explanation": "Person kann dies selbstständig einhalten oder benötigt es nicht."},
-                {"score": 1, "text": "Überwiegend selbstständig/Anleitung/Aufsicht", "option_explanation": "Person benötigt Anleitung, Aufsicht oder Erinnerung."},
-                {"score": 2, "text": "Überwiegend unselbstständig/Kontrolle/Hilfe", "option_explanation": "Einhaltung muss kontrolliert oder teilweise unterstützt werden (z.B. Diätkost zubereiten)."},
-                {"score": 3, "text": "Unselbstständig", "option_explanation": "Einhaltung muss vollständig von anderen sichergestellt werden."}
-            ]
-        }
+        {
+            'part_id': '5.5',
+            'name': 'Teil 5: Diät und Verhaltensvorschriften',
+             'questions': [
+                 {
+                    'id': '5.5.1',
+                    'text': 'Einhaltung einer Diät und anderer krankheits- oder therapiebedingter Verhaltensvorschriften',
+                    'explanation': 'Fähigkeit, Diätpläne oder spezielle Verhaltensregeln einzuhalten.',
+                    'type': 'standard', # This seems to be a standard choice question
+                    'options': [
+                        {'text': 'Entfällt/Selbständig', 'score': 0}, # Combine based on doc? Needs clarification
+                        # {'text': 'Selbständig', 'score': 0}, # Or separate?
+                        {'text': 'Überwiegend selbständig', 'score': 1}, # Scores need verification
+                        {'text': 'Überwiegend unselbständig', 'score': 2},
+                        {'text': 'Unselbständig', 'score': 3}
+                    ]
+                 },
+             ]
+        },
     ]
+    # Add function here later to calculate total raw score based on frequencies
 }

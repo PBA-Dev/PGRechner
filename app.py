@@ -2,8 +2,8 @@ import os
 import json
 import logging
 from flask import Flask, render_template, request, make_response, url_for, session, redirect, flash, Response, current_app, jsonify
-#from werkzeug.exceptions import BadRequest
 from fpdf import FPDF
+from fpdf.enums import XPos, YPos
 from modules.module1 import module1
 from modules.module2 import module2
 from modules.module3 import module3
@@ -11,14 +11,11 @@ from modules.module4 import module4
 from modules.module5 import module5
 from modules.module6 import module6
 from config.pflegegrad_config import pflegegrad_thresholds
+from config.benefits_data import pflegegrad_benefits
 
 app = Flask(__name__)
-# Secret key is needed for session management
-# In a real app, use a strong, environment-variable-based secret key
-app.secret_key = os.urandom(24) # Generates a random key each time app starts
+app.secret_key = os.urandom(24)
 
-# Combine all modules (consider using OrderedDict if order matters explicitly)
-# Python dictionaries maintain insertion order from 3.7+
 all_modules = {
     1: module1,
     2: module2,
@@ -29,55 +26,13 @@ all_modules = {
 }
 TOTAL_MODULES = len(all_modules)
 
-# In app.py
-# ... (imports, config) ...
-
-# --- NBA Raw Points to Weighted Points Mapping ---
-# Structure: { module_id: [(raw_upper_bound, weighted_points), ...], ... }
-# Ranges are checked as: if raw_score <= raw_upper_bound
-RAW_TO_WEIGHTED_MAPPING = {
-    '1': [ # Modul 1: Mobilität
-        (1, 0.0),
-        (3, 2.5),
-        (5, 5.0),
-        (9, 7.5),
-        (15, 10.0) # Max raw 15
-    ],
-    '2': [ # Modul 2: Kognitive und kommunikative Fähigkeiten
-        (1, 0.0),
-        (5, 3.75),
-        (10, 7.5),
-        (16, 11.25),
-        (33, 15.0) # Max raw 33
-    ],
-    '3': [ # Modul 3: Verhaltensweisen und psychische Problemlagen
-        (0, 0.0),   # Explicitly 0 raw points = 0 weighted
-        (2, 3.75),  # 1-2 raw points
-        (4, 7.5),   # 3-4 raw points
-        (6, 11.25), # 5-6 raw points
-        (65, 15.0)  # 7-65 raw points (Max raw 65)
-    ],
-    '4': [ # Modul 4: Selbstversorgung
-        (2, 0.0),
-        (7, 10.0),
-        (18, 20.0),
-        (36, 30.0),
-        (54, 40.0) # Max raw 54
-    ],
-    '5': [ # Modul 5: Umgang mit krankheits-/therapiebedingten Anforderungen
-        (0, 0.0),
-        (1, 5.0),
-        (3, 10.0),
-        (5, 15.0),
-        (15, 20.0) # Max raw 15
-    ],
-    '6': [ # Modul 6: Gestaltung des Alltagslebens und sozialer Kontakte
-        (0, 0.0),
-        (3, 3.75),
-        (6, 7.5),
-        (11, 11.25),
-        (18, 15.0) # Max raw 18
-    ]
+weighted_score_mapping_tables = {
+    1: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 10), (12, 10), (13, 10), (14, 10), (15, 10)],
+    2: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 14), (15, 15), (16, 15), (17, 15), (18, 15), (19, 15), (20, 15), (21, 15), (22, 15), (23, 15), (24, 15), (25, 15), (26, 15), (27, 15), (28, 15), (29, 15), (30, 15), (31, 15), (32, 15), (33, 15)],
+    3: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 5), (7, 5), (8, 5), (9, 5), (10, 10), (11, 10), (12, 10), (13, 10), (14, 10), (15, 15), (16, 15), (17, 15), (18, 15), (19, 15), (20, 15), (21, 15), (22, 15), (23, 15), (24, 15), (25, 15), (26, 15), (27, 15), (28, 15), (29, 15), (30, 15), (31, 15), (32, 15), (33, 15), (34, 15), (35, 15), (36, 15), (37, 15), (38, 15), (39, 15), (40, 15), (41, 15), (42, 15), (43, 15), (44, 15), (45, 15), (46, 15), (47, 15), (48, 15), (49, 15), (50, 15), (51, 15), (52, 15), (53, 15), (54, 15), (55, 15), (56, 15), (57, 15), (58, 15), (59, 15), (60, 15), (61, 15), (62, 15), (63, 15), (64, 15), (65, 15)],
+    4: [(0, 0), (1, 2.5), (2, 5), (3, 7.5), (4, 10), (5, 12.5), (6, 15), (7, 17.5), (8, 20), (9, 22.5), (10, 25), (11, 27.5), (12, 30), (13, 32.5), (14, 35), (15, 37.5), (16, 40), (17, 40), (18, 40), (19, 40), (20, 40), (21, 40), (22, 40), (23, 40), (24, 40), (25, 40), (26, 40), (27, 40), (28, 40), (29, 40), (30, 40), (31, 40), (32, 40), (33, 40), (34, 40), (35, 40), (36, 40), (37, 40), (38, 40), (39, 40), (40, 40), (41, 40), (42, 40), (43, 40), (44, 40), (45, 40), (46, 40), (47, 40), (48, 40)],
+    5: [(0, 0), (1, 5), (2, 10), (3, 15), (4, 20), (5, 20), (6, 20), (7, 20), (8, 20), (9, 20), (10, 20), (11, 20), (12, 20), (13, 20), (14, 20), (15, 20)],
+    6: [(0, 0), (1, 1.25), (2, 2.5), (3, 3.75), (4, 5), (5, 6.25), (6, 7.5), (7, 8.75), (8, 10), (9, 11.25), (10, 12.5), (11, 13.75), (12, 15), (13, 15), (14, 15), (15, 15), (16, 15), (17, 15), (18, 15)]
 }
 
 # ... (rest of app setup: all_modules, TOTAL_MODULES, pflegegrad_thresholds) ...
@@ -85,26 +40,49 @@ RAW_TO_WEIGHTED_MAPPING = {
 # In app.py
 # ... (imports, config, RAW_TO_WEIGHTED_MAPPING) ...
 
-def _get_weighted_score_from_raw(module_id_str, raw_score):
-    """Looks up the weighted score based on the raw score for a given module."""
-    mapping = RAW_TO_WEIGHTED_MAPPING.get(module_id_str)
-    if mapping is None:
-        return 0.0 # Module not found in mapping
+def map_raw_to_weighted_score(module_id, raw_score):
+    """Maps raw score to weighted score based on predefined tables."""
+    try:
+        module_id = int(module_id)
+    except (ValueError, TypeError):
+        current_app.logger.error(f"Invalid module_id type for weighted score mapping: {module_id}")
+        return 0.0
 
-    # Ensure raw_score is a number (float for comparison)
+    if module_id not in weighted_score_mapping_tables:
+        current_app.logger.warning(f"Weighted score mapping table not found for module_id: {module_id}")
+        return 0.0
+
+    mapping_table = weighted_score_mapping_tables[module_id]
+    weighted_score = 0.0
+
     try:
         raw_score = float(raw_score)
     except (ValueError, TypeError):
-        return 0.0 # Invalid raw score
+         current_app.logger.warning(f"Invalid raw_score type for weighted score mapping (Module {module_id}): {raw_score}")
+         return 0.0
 
-    # Iterate through the sorted mapping (lowest upper bound first)
-    for upper_bound, weighted_points in mapping:
-        if raw_score <= upper_bound:
-            return float(weighted_points) # Return as float
+    for table_raw, table_weighted in mapping_table:
+        if raw_score >= table_raw:
+            weighted_score = table_weighted
+        else:
+            break
+    return float(weighted_score)
 
-    # If raw_score exceeds the highest upper bound (shouldn't happen with valid data)
-    # Return the highest possible weighted score for that module as a fallback
-    return float(mapping[-1][1]) if mapping else 0.0
+def calculate_frequency_score(count, unit):
+    """Calculates a raw score based on frequency of need."""
+    try:
+        count = int(count)
+        if count < 0: count = 0
+    except (ValueError, TypeError):
+        count = 0
+
+    if count == 0: return 0
+
+    unit = str(unit).lower()
+    if 'tag' in unit or 'day' in unit: return 3
+    elif 'woche' in unit or 'week' in unit: return 2
+    elif 'monat' in unit or 'month' in unit: return 1
+    else: return 0
 
 # ... (rest of app setup) ...
 
@@ -113,63 +91,16 @@ def _get_weighted_score_from_raw(module_id_str, raw_score):
 # In app.py
 
 # --- Helper Function ---
-def _calculate_current_score(answers_dict, all_modules_config):
-    """Calculates the estimated FINAL NBA score based on current answers using range mapping."""
-    if not answers_dict:
-        return 0.0
-
-    module_scores_raw = {}
-    module_scores_weighted = {} # Store weighted scores per module
-
-    # 1. Calculate raw scores for answered modules
-    for module_id_str, module_answers in answers_dict.items():
-        if not module_answers: continue
-
-        module_id = int(module_id_str)
-        current_module = all_modules_config.get(module_id)
-        if not current_module: continue
-
-        module_total_raw = 0.0
-        for q_idx_str, answer_data in module_answers.items():
-            if answer_data is not None:
-                try:
-                    module_total_raw += float(answer_data.get('score', 0))
-                except (ValueError, TypeError):
-                    pass # Ignore non-numeric scores if they somehow occur
-
-        module_scores_raw[module_id_str] = module_total_raw
-
-        # 2. Map raw score to weighted score for this module
-        module_scores_weighted[module_id_str] = _get_weighted_score_from_raw(
-            module_id_str, module_total_raw
-        )
-
-    # --- Apply NBA Final Score Calculation Logic ---
-    weighted_m1 = module_scores_weighted.get('1', 0.0)
-    weighted_m2 = module_scores_weighted.get('2', 0.0)
-    weighted_m3 = module_scores_weighted.get('3', 0.0)
-    weighted_m4 = module_scores_weighted.get('4', 0.0)
-    weighted_m5 = module_scores_weighted.get('5', 0.0)
-    weighted_m6 = module_scores_weighted.get('6', 0.0)
-
-    # 3. Determine higher WEIGHTED score between M2 and M3
-    higher_weighted_score_m2_m3 = max(weighted_m2, weighted_m3)
-
-    # 4. Sum the weighted points that contribute
-    current_final_score_estimate = (
-        weighted_m1 +
-        higher_weighted_score_m2_m3 +
-        weighted_m4 +
-        weighted_m5 +
-        weighted_m6
-    )
-
-    # Return the rounded final estimated score
-    return round(current_final_score_estimate, 2)
+weighted_score_mapping_tables = {
+    1: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 10), (12, 10), (13, 10), (14, 10), (15, 10)],
+    2: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 14), (15, 15), (16, 15), (17, 15), (18, 15), (19, 15), (20, 15), (21, 15), (22, 15), (23, 15), (24, 15), (25, 15), (26, 15), (27, 15), (28, 15), (29, 15), (30, 15), (31, 15), (32, 15), (33, 15)],
+    3: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 5), (7, 5), (8, 5), (9, 5), (10, 10), (11, 10), (12, 10), (13, 10), (14, 10), (15, 15), (16, 15), (17, 15), (18, 15), (19, 15), (20, 15), (21, 15), (22, 15), (23, 15), (24, 15), (25, 15), (26, 15), (27, 15), (28, 15), (29, 15), (30, 15), (31, 15), (32, 15), (33, 15), (34, 15), (35, 15), (36, 15), (37, 15), (38, 15), (39, 15), (40, 15), (41, 15), (42, 15), (43, 15), (44, 15), (45, 15), (46, 15), (47, 15), (48, 15), (49, 15), (50, 15), (51, 15), (52, 15), (53, 15), (54, 15), (55, 15), (56, 15), (57, 15), (58, 15), (59, 15), (60, 15), (61, 15), (62, 15), (63, 15), (64, 15), (65, 15)],
+    4: [(0, 0), (1, 2.5), (2, 5), (3, 7.5), (4, 10), (5, 12.5), (6, 15), (7, 17.5), (8, 20), (9, 22.5), (10, 25), (11, 27.5), (12, 30), (13, 32.5), (14, 35), (15, 37.5), (16, 40), (17, 40), (18, 40), (19, 40), (20, 40), (21, 40), (22, 40), (23, 40), (24, 40), (25, 40), (26, 40), (27, 40), (28, 40), (29, 40), (30, 40), (31, 40), (32, 40), (33, 40), (34, 40), (35, 40), (36, 40), (37, 40), (38, 40), (39, 40), (40, 40), (41, 40), (42, 40), (43, 40), (44, 40), (45, 40), (46, 40), (47, 40), (48, 40)],
+    5: [(0, 0), (1, 5), (2, 10), (3, 15), (4, 20), (5, 20), (6, 20), (7, 20), (8, 20), (9, 20), (10, 20), (11, 20), (12, 20), (13, 20), (14, 20), (15, 20)],
+    6: [(0, 0), (1, 1.25), (2, 2.5), (3, 3.75), (4, 5), (5, 6.25), (6, 7.5), (7, 8.75), (8, 10), (9, 11.25), (10, 12.5), (11, 13.75), (12, 15), (13, 15), (14, 15), (15, 15), (16, 15), (17, 15), (18, 15)]
+}
 
 # --- Routes ---
-# ... (intro route) ...
-# ... (module_page route - no changes needed here, it calls the corrected helper) ...
 
 @app.route('/')
 def intro():
@@ -179,424 +110,612 @@ def intro():
     session.pop('results', None)
     return render_template('intro.html')
 
-# In app.py
 
-# ... (helper function above) ...
+# --- Add Helper Function for Module 5 Frequency Scoring ---
+def calculate_frequency_score(count, unit):
+    """
+    Calculates a raw score based on frequency of need.
+    Adjust this logic based on official NBA guidelines if needed.
+    """
+    try:
+        # Ensure count is a non-negative integer
+        count = int(count)
+        if count < 0:
+            count = 0
+    except (ValueError, TypeError):
+        count = 0 # Treat invalid input as 0
 
-# In app.py
+    if count == 0:
+        return 0 # No need or self-sufficient
 
-# ... (imports, helper function, intro route) ...
+    # Determine score based on unit (assuming count > 0)
+    unit = str(unit).lower() # Normalize unit
+    if 'tag' in unit or 'day' in unit:
+        return 3 # Daily need
+    elif 'woche' in unit or 'week' in unit:
+        return 2 # Weekly need
+    elif 'monat' in unit or 'month' in unit:
+        return 1 # Monthly need
+    else:
+        return 0 # Unknown unit or frequency not applicable
 
-# In app.py
-
-# ... (imports, helper function, intro route) ...
-
-@app.route('/module/<int:module_id>', methods=['GET', 'POST'])
+# --- Update module_page_submit function ---
+# --- Route for DISPLAYING module page (GET requests) ---
+@app.route('/module/<int:module_id>', methods=['GET'], endpoint='module_page') # Explicit endpoint name
 def module_page(module_id):
-    """Displays questions for a specific module and handles submission."""
+    if module_id not in all_modules or module_id < 1 or module_id > TOTAL_MODULES:
+        flash("Ungültiges Modul angefordert.", "error")
+        # Redirect to intro or the first module if session exists
+        if 'module_answers' in session and session['module_answers']:
+             first_answered = min(int(k) for k in session['module_answers'].keys() if k.isdigit())
+             return redirect(url_for('module_page', module_id=first_answered))
+        return redirect(url_for('intro'))
 
-    # --- Initial Checks ---
-    if module_id < 1 or module_id > TOTAL_MODULES:
+    module_data = all_modules[module_id]
+    module_id_str = str(module_id)
+
+    # Get current answers for this module to pre-fill form
+    current_answers = session.get('module_answers', {}).get(module_id_str, {})
+
+    # --- Calculate Estimated Score for Progress Bar ---
+    # This logic needs to be here for GET requests too
+    current_estimated_score = 0.0
+    temp_module_scores_raw = {}
+    temp_module_scores_weighted = {}
+    temp_which_module_contributed_m2_m3 = None
+
+    # Recalculate based on session data up to the *previous* module
+    # Or include current module if answers exist? Let's recalculate all answered.
+    all_session_answers = session.get('module_answers', {})
+    for mid_str, answers in all_session_answers.items():
+        mid = int(mid_str)
+        if mid not in all_modules: continue
+
+        raw_score = 0.0
+        for q_key, answer_data in answers.items():
+             if q_key not in ['notes', 'visited'] and isinstance(answer_data, dict):
+                 raw_score += answer_data.get('score', 0)
+        temp_module_scores_raw[mid_str] = raw_score
+        temp_module_scores_weighted[mid_str] = map_raw_to_weighted_score(mid, raw_score)
+
+    # Calculate estimated total based on weighted scores found
+    m1_s = temp_module_scores_weighted.get('1', 0.0)
+    m2_s = temp_module_scores_weighted.get('2', 0.0)
+    m3_s = temp_module_scores_weighted.get('3', 0.0)
+    m4_s = temp_module_scores_weighted.get('4', 0.0)
+    m5_s = temp_module_scores_weighted.get('5', 0.0)
+    m6_s = temp_module_scores_weighted.get('6', 0.0)
+
+    current_estimated_score += m1_s
+    if m2_s >= m3_s:
+        current_estimated_score += m2_s
+        temp_which_module_contributed_m2_m3 = 2
+    else:
+        current_estimated_score += m3_s
+        temp_which_module_contributed_m2_m3 = 3
+    current_estimated_score += m4_s
+    current_estimated_score += m5_s
+    current_estimated_score += m6_s
+    # --- End Estimated Score Calculation ---
+
+    # Define max_score for the progress bar (adjust if needed)
+    max_score = 100
+
+    return render_template(
+        'module_page.html',
+        module=module_data,
+        module_id=module_id,
+        TOTAL_MODULES=TOTAL_MODULES, # Pass TOTAL_MODULES
+        current_answers=current_answers, # Pass current answers for pre-filling
+        # Pass data needed for progress bar
+        current_estimated_score=current_estimated_score,
+        max_score=max_score,
+        pflegegrad_thresholds=pflegegrad_thresholds,
+        all_modules=all_modules # Pass all_modules if needed by template logic
+    )
+
+
+# --- Route for HANDLING module submission (POST requests) ---
+@app.route('/module/<int:module_id>', methods=['POST'], endpoint='module_page_submit') # Explicit endpoint name
+def module_page_submit(module_id):
+    # Keep the entire logic from the previous step here
+    # (Checking module_id, initializing session, storing answers for M5,
+    # storing answers for other modules, storing notes, redirecting)
+    if module_id not in all_modules:
         flash("Ungültiges Modul.", "error")
         return redirect(url_for('intro'))
 
-    # --- Define current_module EARLY ---
-    current_module = all_modules.get(module_id)
-    if not current_module:
-        # This check should ideally happen right after getting the module
-        flash(f"Modul {module_id} nicht gefunden.", "error")
-        return redirect(url_for('intro'))
+    module_data = all_modules[module_id]
+    module_id_str = str(module_id)
 
-    # --- Session and Score Setup ---
-    if 'answers' not in session:
-        session['answers'] = {}
+    # Initialize session storage if not present
+    if 'module_answers' not in session:
+        session['module_answers'] = {}
+    if module_id_str not in session['module_answers']:
+        session['module_answers'][module_id_str] = {}
 
-    current_answers_in_session = session.get('answers', {})
-    # Calculate score based on session data *before* POST processing
-    current_estimated_score = _calculate_current_score(current_answers_in_session, all_modules)
-    max_score = 100.0
+    # --- Store answers ---
+    if module_id == 5:
+        # --- Module 5: Handle parts, frequency and standard questions ---
+        for part in module_data.get('parts', []):
+            for question in part.get('questions', []):
+                question_key = question['id'] # Use the unique question ID (e.g., '5.1.1')
 
-    # --- POST Request Handling ---
-    if request.method == 'POST':
-        module_answers = {}
-        all_questions_answered = True
+                if question.get('type') == 'frequency':
+                    count_key = f'freq_count_{question_key}'
+                    unit_key = f'freq_unit_{question_key}'
+                    answered_key = f'answered_{question_key}' # Check if user interacted
 
-        # Loop through questions (using the 'current_module' defined above)
-        for q_idx, question in enumerate(current_module['questions']):
-            # ... (logic to get score_str, handle None, store in module_answers) ...
-            answer_key = f"module_{module_id}_question_{q_idx}"
-            score_str = request.form.get(answer_key)
+                    # Only process if the hidden 'answered' field was sent
+                    if answered_key in request.form:
+                        count = request.form.get(count_key, 0)
+                        unit = request.form.get(unit_key, '')
+                        score = calculate_frequency_score(count, unit)
+                        answer_text = f"{count}x pro {unit}" if score > 0 else "Entfällt/Selbständig"
 
-            if score_str is None:
-                all_questions_answered = False
-                module_answers[str(q_idx)] = None
-            else:
-                 try:
-                    score = int(score_str)
-                    option_found = False
-                    for option in question['options']:
-                        if option['score'] == score:
-                            answer_text = option['text']
-                            option_found = True
-                            break
-                    if not option_found:
-                        score = 0
-                        answer_text = "Ungültige Auswahl"
+                        session['module_answers'][module_id_str][question_key] = {
+                            'question': question['text'],
+                            'answer_text': answer_text,
+                            'score': score,
+                            'count': count,
+                            'unit': unit
+                        }
+                    else:
+                         session['module_answers'][module_id_str].pop(question_key, None)
 
-                    module_answers[str(q_idx)] = {
-                        'question': question['question'],
-                        'score': score,
-                        'answer_text': answer_text
-                    }
-                 except ValueError:
-                    all_questions_answered = False
-                    module_answers[str(q_idx)] = None
+                elif question.get('type') == 'standard':
+                    answer_key = f'answer_{module_id}_{question_key}'
+                    selected_option_index = request.form.get(answer_key)
+                    if selected_option_index is not None:
+                        try:
+                            option_index = int(selected_option_index)
+                            if 0 <= option_index < len(question['options']):
+                                selected_option = question['options'][option_index]
+                                session['module_answers'][module_id_str][question_key] = {
+                                    'question': question['text'],
+                                    'answer_text': selected_option['text'],
+                                    'score': selected_option.get('score', 0),
+                                    'option_index': option_index
+                                }
+                            else: session['module_answers'][module_id_str].pop(question_key, None)
+                        except ValueError: session['module_answers'][module_id_str].pop(question_key, None)
+                    else: session['module_answers'][module_id_str].pop(question_key, None)
 
+                else: # Fallback/Default
+                    answer_key = f'answer_{module_id}_{question_key}'
+                    selected_option_index = request.form.get(answer_key)
+                    if selected_option_index is not None:
+                        try:
+                            option_index = int(selected_option_index)
+                            if 0 <= option_index < len(question['options']):
+                                selected_option = question['options'][option_index]
+                                session['module_answers'][module_id_str][question_key] = {
+                                    'question': question['text'],
+                                    'answer_text': selected_option['text'],
+                                    'score': selected_option.get('score', 0),
+                                    'option_index': option_index
+                                }
+                            else: session['module_answers'][module_id_str].pop(question_key, None)
+                        except ValueError: session['module_answers'][module_id_str].pop(question_key, None)
+                    else: session['module_answers'][module_id_str].pop(question_key, None)
 
-        session['answers'][str(module_id)] = module_answers
-        session.modified = True
-
-        # --- Validation Check ---
-        if not all_questions_answered:
-             flash("Bitte beantworten Sie alle Fragen, bevor Sie fortfahren.", "warning")
-             current_answers_for_template = session['answers'].get(str(module_id), {})
-             # Recalculate score needed for re-rendering
-             current_estimated_score = _calculate_current_score(session.get('answers', {}), all_modules)
-             # Render the SAME module page again
-             return render_template('module_page.html',
-                                    # 'current_module' MUST be defined by this point
-                                    module=current_module,
-                                    module_id=module_id,
-                                    total_modules=TOTAL_MODULES,
-                                    current_answers=current_answers_for_template,
-                                    current_estimated_score=current_estimated_score,
-                                    pflegegrad_thresholds=pflegegrad_thresholds,
-                                    max_score=max_score) # Error occurred here
-
-        # --- Redirect on Success ---
-        if module_id < TOTAL_MODULES:
-            next_module_id = module_id + 1
-            return redirect(url_for('module_page', module_id=next_module_id))
-        else:
-            return redirect(url_for('calculate'))
-
-    # --- GET Request Handling ---
-    # 'current_module' is already defined from above
-    current_answers_for_template = session['answers'].get(str(module_id), {})
-    # Score calculation for GET is also done above
-    return render_template('module_page.html',
-                           module=current_module,
-                           module_id=module_id,
-                           total_modules=TOTAL_MODULES,
-                           current_answers=current_answers_for_template,
-                           current_estimated_score=current_estimated_score,
-                           pflegegrad_thresholds=pflegegrad_thresholds,
-                           max_score=max_score)
-
-# ... (rest of app.py) ...# ... (calculate route) ...
-# ... (generate_pdf route) ...
-# ... (if __name__ == '__main__':) ...
-# In app.py
-
-# ... (imports, config, RAW_TO_WEIGHTED_MAPPING, helpers, intro, module_page routes) ...
-
-@app.route('/calculate')
-def calculate():
-    """Calculates the final NBA score and determines the Pflegegrad using range mapping."""
-    if 'answers' not in session or not session['answers']:
-        flash("Keine Antworten vorhanden, um den Pflegegrad zu berechnen.", "warning")
-        return redirect(url_for('intro'))
-
-    # --- Calculate Raw Scores for all modules ---
-    module_scores_raw = {}
-    for module_id_str, module_answers in session.get('answers', {}).items():
-        if not module_answers: continue
-
-        module_id = int(module_id_str)
-        current_module = all_modules.get(module_id)
-        if not current_module: continue
-
-        module_total_raw = 0.0
-        for q_idx_str, answer_data in module_answers.items():
-             if answer_data is not None:
+    else: # Standard handling for modules 1, 2, 3, 4, 6
+        for i, question in enumerate(module_data.get('questions', [])):
+            question_index_str = str(i)
+            # Use .get() for question text with a default value
+            question_text = question.get('text', f'Unbekannte Frage {i+1}')
+            answer_key = f'answer_{module_id}_{i}'
+            selected_option_index = request.form.get(answer_key)
+            if selected_option_index is not None:
                 try:
-                    module_total_raw += float(answer_data.get('score', 0))
-                except (ValueError, TypeError):
-                    pass
+                    option_index = int(selected_option_index)
+                    options = question.get('options', [])
+                    if 0 <= option_index < len(options):
+                        selected_option = options[option_index]
+                        if isinstance(selected_option, dict):
+                            session['module_answers'][module_id_str][question_index_str] = {
+                                'question': question_text,
+                                'answer_text': selected_option.get('text', 'N/A'),
+                                'score': selected_option.get('score', 0),
+                                'option_index': option_index,
+                                'type': 'standard'
+                            }
+                        else:
+                            current_app.logger.error(f"Invalid option format for M{module_id} Q{i} Opt{option_index}: {selected_option}")
+                            session['module_answers'][module_id_str].pop(question_index_str, None)
+                    else:
+                         session['module_answers'][module_id_str].pop(question_index_str, None)
+                except ValueError:
+                     session['module_answers'][module_id_str].pop(question_index_str, None)
+                except TypeError:
+                     current_app.logger.error(f"Invalid options format for M{module_id} Q{i}: {options}")
+                     session['module_answers'][module_id_str].pop(question_index_str, None)
+            else:
+                 session['module_answers'][module_id_str].pop(question_index_str, None)
 
-        module_scores_raw[module_id_str] = module_total_raw
+    # --- Store Notes ---
+    notes_key = f'module_{module_id}_notes'
+    notes_text = request.form.get(notes_key, '').strip()
+    if notes_text:
+        session['module_answers'][module_id_str]['notes'] = notes_text
+    else:
+        session['module_answers'][module_id_str].pop('notes', None)
 
-    # --- Determine Weighted Scores using Mapping ---
-    weighted_scores = {}
-    for module_id_str, raw_score in module_scores_raw.items():
-        weighted_scores[module_id_str] = _get_weighted_score_from_raw(
-            module_id_str, raw_score
-        )
-
-    # --- Apply Final Calculation Logic ---
-    weighted_m1 = weighted_scores.get('1', 0.0)
-    weighted_m2 = weighted_scores.get('2', 0.0)
-    weighted_m3 = weighted_scores.get('3', 0.0)
-    weighted_m4 = weighted_scores.get('4', 0.0)
-    weighted_m5 = weighted_scores.get('5', 0.0)
-    weighted_m6 = weighted_scores.get('6', 0.0)
-
-    # Determine which WEIGHTED score (M2 or M3) contributes
-    higher_weighted_score_m2_m3 = max(weighted_m2, weighted_m3)
-    # Determine which module ID provided the higher weighted score
-    which_module_contributed_m2_m3 = 2 if weighted_m2 >= weighted_m3 else 3
-
-    # Calculate final total score by summing the contributing weighted points
-    final_total_score = (
-        weighted_m1 +
-        higher_weighted_score_m2_m3 +
-        weighted_m4 +
-        weighted_m5 +
-        weighted_m6
-    )
-
-    # --- Determine Pflegegrad based on the FINAL score ---
-    determined_pflegegrad = 0
-    # Use the existing pflegegrad_thresholds dictionary
-    sorted_thresholds = sorted(pflegegrad_thresholds.items())
-    for grade, (lower_bound, upper_bound) in sorted_thresholds:
-        lower = float(lower_bound)
-        upper = float(upper_bound) if upper_bound != float('inf') else float('inf')
-
-        # Check if score falls within the range [lower, upper]
-        # Use >= lower and < upper for standard ranges, handle PG 5 separately
-        if final_total_score >= lower:
-            if grade == 5: # PG 5 is 90 and above
-                determined_pflegegrad = 5
-                break
-            elif final_total_score < upper:
-                 # Check for PG 0 explicitly (score >= 0 but < 12.5)
-                 if grade == 0:
-                     pg1_lower_bound = float(pflegegrad_thresholds.get(1, [12.5, 27])[0])
-                     if final_total_score < pg1_lower_bound:
-                         determined_pflegegrad = 0
-                         break
-                     else:
-                         continue # Score is >= PG1 lower bound, check higher grades
-                 else:
-                    determined_pflegegrad = grade # Found PG 1-4
-                    break
-        elif grade == 0 and final_total_score < lower: # Handle scores below 0 just in case
-             determined_pflegegrad = 0
-             break
-
-
-    # --- Prepare data for the template ---
-    result_data = {
-        'answers': session.get('answers', {}),
-        'module_scores_raw': module_scores_raw, # Raw scores per module
-        'module_scores_weighted': weighted_scores, # Weighted scores per module
-        'final_total_score': round(final_total_score, 2), # The final sum
-        'pflegegrad': determined_pflegegrad,
-        'which_module_contributed_m2_m3': which_module_contributed_m2_m3
-    }
-
-    # Clear session answers
-    session.pop('answers', None)
     session.modified = True
 
-    # Render the result page
-    return render_template('result.html',
-                           result=result_data,
-                           modules=all_modules,
-                           pflegegrad_thresholds=pflegegrad_thresholds,
-                           max_score=100.0) # Max score for progress bar remains 100
+    # --- Determine next step ---
+    next_module_id = module_id + 1
+    if next_module_id > TOTAL_MODULES:
+        return redirect(url_for('calculate'))
+    else:
+        # Redirect to the GET endpoint for the next module
+        return redirect(url_for('module_page', module_id=next_module_id))
 
+
+# --- Update calculate function ---
+@app.route('/calculate')
+def calculate():
+    if 'module_answers' not in session or not session['module_answers']:
+        flash("Bitte füllen Sie zuerst die Module aus.", "warning")
+        return redirect(url_for('intro'))
+
+    all_answers = session.get('module_answers', {})
+    module_scores_raw = {}
+    module_scores_weighted = {}
+    all_detailed_answers = {} # To store text and score for results page/PDF
+
+    # --- Calculate Raw Scores and Collect Detailed Answers ---
+    for module_id_str, answers in all_answers.items():
+        module_id = int(module_id_str)
+        if module_id not in all_modules: continue
+
+        module_data = all_modules[module_id]
+        current_module_raw_score = 0.0
+        current_detailed_answers = {}
+
+        # Iterate through the stored answers for the module
+        # Exclude 'notes' and 'visited' keys from score calculation
+        for q_key, answer_data in answers.items():
+            if q_key not in ['notes', 'visited'] and isinstance(answer_data, dict):
+                current_module_raw_score += answer_data.get('score', 0)
+                current_detailed_answers[q_key] = answer_data # Store details (question text, answer text, score)
+
+        module_scores_raw[module_id_str] = current_module_raw_score
+        all_detailed_answers[module_id_str] = current_detailed_answers
+
+
+    # --- Map Raw Scores to Weighted Scores (using mapping function) ---
+    # (Keep existing logic)
+    for module_id_str, raw_score in module_scores_raw.items():
+         module_id = int(module_id_str)
+         if module_id in all_modules:
+             module_scores_weighted[module_id_str] = map_raw_to_weighted_score(module_id, raw_score)
+         else:
+             module_scores_weighted[module_id_str] = 0.0
+
+    # --- Calculate Final Total Score ---
+    # (Keep existing logic)
+    final_total_score = 0
+    which_module_contributed_m2_m3 = None
+    m1_score = module_scores_weighted.get('1', 0.0)
+    m2_score = module_scores_weighted.get('2', 0.0)
+    m3_score = module_scores_weighted.get('3', 0.0)
+    m4_score = module_scores_weighted.get('4', 0.0)
+    m5_score = module_scores_weighted.get('5', 0.0) # Now uses calculated M5 score
+    m6_score = module_scores_weighted.get('6', 0.0)
+
+    final_total_score += m1_score
+    if m2_score >= m3_score:
+        final_total_score += m2_score
+        which_module_contributed_m2_m3 = 2
+    else:
+        final_total_score += m3_score
+        which_module_contributed_m2_m3 = 3
+    final_total_score += m4_score
+    final_total_score += m5_score
+    final_total_score += m6_score
+
+    # --- Determine Pflegegrad ---
+    # (Keep existing logic)
+    pflegegrad = 0
+    for grad, threshold in sorted(pflegegrad_thresholds.items(), key=lambda item: item[1]['min_points']):
+        if final_total_score >= threshold['min_points']:
+            pflegegrad = grad
+        else:
+            break
+
+    # --- Aggregate Notes ---
+    # (Keep existing logic)
+    aggregated_notes = {
+        mid: data.get('notes', '')
+        for mid, data in all_answers.items()
+        if data.get('notes')
+    }
+
+    # --- Get Benefits Data ---
+    # (Keep existing logic - maybe add date check)
+    from datetime import date
+    today = date.today()
+    # Determine period based on date - adjust cutoff as needed
+    current_period_key = "period_2" if today >= date(today.year, 7, 1) else "period_1"
+    # Fallback if period key doesn't exist for some reason
+    benefits_for_pg = pflegegrad_benefits.get(pflegegrad, {})
+    benefits = benefits_for_pg.get(current_period_key)
+    if not benefits: # If current period missing, try the other one
+        fallback_period = "period_1" if current_period_key == "period_2" else "period_2"
+        benefits = benefits_for_pg.get(fallback_period, {})
+
+
+    # --- Prepare results for template ---
+    # (Keep existing structure)
+    results = {
+        'final_total_score': round(final_total_score, 2),
+        'pflegegrad': pflegegrad,
+        'module_scores_raw': module_scores_raw,
+        'module_scores_weighted': module_scores_weighted,
+        'which_module_contributed_m2_m3': which_module_contributed_m2_m3,
+        'answers': all_detailed_answers, # Pass detailed answers for display/PDF
+        'notes': aggregated_notes,       # Pass aggregated notes
+        'benefits': benefits             # Pass benefits data
+    }
+
+    session['results'] = results # Keep storing in session if needed elsewhere
+
+    # Pass necessary variables to the template
+    return render_template(
+        'result.html',
+        results=results,
+        all_modules=all_modules,
+        pflegegrad_thresholds=pflegegrad_thresholds
+        # Add TOTAL_MODULES if used in result.html
+        # TOTAL_MODULES=TOTAL_MODULES
+    )
+
+# Make sure calculate_frequency_score, all_modules, pflegegrad_thresholds,
+
+# Example structure (should be in config or app.py)
+weighted_score_mapping_tables = {
+    1: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 10), (12, 10), (13, 10), (14, 10), (15, 10)], # Example M1 mapping
+    2: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 14), (15, 15), (16, 15), (17, 15), (18, 15), (19, 15), (20, 15), (21, 15), (22, 15), (23, 15), (24, 15), (25, 15), (26, 15), (27, 15), (28, 15), (29, 15), (30, 15), (31, 15), (32, 15), (33, 15)], # Example M2 mapping
+    3: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 5), (7, 5), (8, 5), (9, 5), (10, 10), (11, 10), (12, 10), (13, 10), (14, 10), (15, 15), (16, 15), (17, 15), (18, 15), (19, 15), (20, 15), (21, 15), (22, 15), (23, 15), (24, 15), (25, 15), (26, 15), (27, 15), (28, 15), (29, 15), (30, 15), (31, 15), (32, 15), (33, 15), (34, 15), (35, 15), (36, 15), (37, 15), (38, 15), (39, 15), (40, 15), (41, 15), (42, 15), (43, 15), (44, 15), (45, 15), (46, 15), (47, 15), (48, 15), (49, 15), (50, 15), (51, 15), (52, 15), (53, 15), (54, 15), (55, 15), (56, 15), (57, 15), (58, 15), (59, 15), (60, 15), (61, 15), (62, 15), (63, 15), (64, 15), (65, 15)], # Example M3 mapping
+    4: [(0, 0), (1, 2.5), (2, 5), (3, 7.5), (4, 10), (5, 12.5), (6, 15), (7, 17.5), (8, 20), (9, 22.5), (10, 25), (11, 27.5), (12, 30), (13, 32.5), (14, 35), (15, 37.5), (16, 40), (17, 40), (18, 40), (19, 40), (20, 40), (21, 40), (22, 40), (23, 40), (24, 40), (25, 40), (26, 40), (27, 40), (28, 40), (29, 40), (30, 40), (31, 40), (32, 40), (33, 40), (34, 40), (35, 40), (36, 40), (37, 40), (38, 40), (39, 40), (40, 40), (41, 40), (42, 40), (43, 40), (44, 40), (45, 40), (46, 40), (47, 40), (48, 40)], # Example M4 mapping
+    5: [(0, 0), (1, 5), (2, 10), (3, 15), (4, 20), (5, 20), (6, 20), (7, 20), (8, 20), (9, 20), (10, 20), (11, 20), (12, 20), (13, 20), (14, 20), (15, 20)], # Example M5 mapping
+    6: [(0, 0), (1, 1.25), (2, 2.5), (3, 3.75), (4, 5), (5, 6.25), (6, 7.5), (7, 8.75), (8, 10), (9, 11.25), (10, 12.5), (11, 13.75), (12, 15), (13, 15), (14, 15), (15, 15), (16, 15), (17, 15), (18, 15)], # Example M6 mapping
+}
+
+def map_raw_to_weighted_score(module_id, raw_score):
+    """Maps raw score to weighted score based on predefined tables."""
+    if module_id not in weighted_score_mapping_tables:
+        return 0.0 # Or raise error
+
+    mapping_table = weighted_score_mapping_tables[module_id]
+    weighted_score = 0.0
+    # Find the highest weighted score where raw_score >= table_raw_score
+    for table_raw, table_weighted in mapping_table:
+        if raw_score >= table_raw:
+            weighted_score = table_weighted
+        else:
+            # Since table is sorted by raw score, we can stop early
+            break
+    return weighted_score
+
+# Ensure pflegegrad_thresholds is defined or imported
+pflegegrad_thresholds = {
+    1: {'min_points': 12.5, 'max_points': 26.9},
+    2: {'min_points': 27, 'max_points': 47.4},
+    3: {'min_points': 47.5, 'max_points': 69.9},
+    4: {'min_points': 70, 'max_points': 89.9},
+    5: {'min_points': 90, 'max_points': 100}
+}
 # ... (generate_pdf route) ...
 
 
+# d:\Users\SSH\OneDrive\1_-_SunState_Health,_LLC\.-Optimum_Pflege\ProgFold\PGRechner\PGRechner\app.py
+# ... (imports and other code remain the same) ...
+
+# --- PDF Generation Route ---
+# d:\Users\SSH\OneDrive\1_-_SunState_Health,_LLC\.-Optimum_Pflege\ProgFold\PGRechner\PGRechner\app.py
+
+# --- PDF Generation Route ---
 @app.route('/generate_pdf', methods=['POST'])
 def generate_pdf():
     """
     Generates a PDF document based on the calculation results provided in the request body.
-    Expects JSON data containing detailed results, final score, and care grade.
+    Handles M5 frequency, notes, benefits. Uses updated FPDF2 syntax.
+    Includes type checking for pdf.output() result.
     """
     data = None
     try:
-        # Attempt to parse JSON data from the request body.
-        # silent=True prevents an immediate exception if parsing fails or content-type is wrong.
         data = request.get_json(silent=True)
-
-        # Check if JSON parsing failed or returned no data
         if data is None:
-            # Log the raw request data for debugging if parsing failed
-            raw_data = request.data.decode('utf-8', errors='ignore') # Decode safely
+            raw_data = request.data.decode('utf-8', errors='ignore')
             current_app.logger.error(f"Invalid or empty JSON received for PDF. Raw data received: '{raw_data}'")
-            # Return a clear error response to the client
-            return jsonify({"error": "Invalid or empty JSON data received. Ensure 'Content-Type: application/json' header is set and body is valid JSON."}), 400 # Bad Request
+            return jsonify({"error": "Invalid or empty JSON data received."}), 400
 
-        # Log the successfully parsed data (optional, but helpful for debugging)
-        current_app.logger.info(f"Successfully parsed JSON data for PDF generation: {json.dumps(data)}")
+        current_app.logger.info(f"Successfully parsed JSON data for PDF generation. Keys: {list(data.keys())}")
 
-        # --- Extract data safely using .get() with defaults ---
-        # detailed_results is expected to be a dictionary already parsed by get_json()
+        # --- Extract data safely ---
         detailed_results = data.get('detailed_results', {})
-        final_total_score_str = data.get('final_total_score', '0.0')
-        pflegegrad_str = data.get('pflegegrad', '0')
-
-        # --- Validate and Convert Extracted Data ---
-        try:
-            final_total_score = float(final_total_score_str)
-        except (ValueError, TypeError):
-            current_app.logger.warning(f"Invalid final_total_score format received: '{final_total_score_str}'. Defaulting to 0.0.")
-            final_total_score = 0.0
-            # Optionally flash a message, but often API errors are just returned
-            # flash("Ungültiger Gesamtpunktwert für PDF erhalten.", "warning")
-
-        try:
-            pflegegrad = int(pflegegrad_str)
-        except (ValueError, TypeError):
-            current_app.logger.warning(f"Invalid pflegegrad format received: '{pflegegrad_str}'. Defaulting to 0.")
-            pflegegrad = 0
-            # flash("Ungültiger Pflegegrad für PDF erhalten.", "warning")
-
-        # --- Validate detailed_results structure (basic check) ---
-        if not isinstance(detailed_results, dict):
-             current_app.logger.error(f"Expected 'detailed_results' to be a dictionary, but got type {type(detailed_results)}. Value: {detailed_results}")
-             # Use an empty dict as a fallback to prevent further errors
-             detailed_results = {}
-             flash("Fehler beim Lesen der Detailergebnisse für PDF (ungültiges Format).", "error")
-
+        final_total_score = float(data.get('final_total_score', 0.0))
+        pflegegrad = int(data.get('pflegegrad', 0))
+        benefits_data = data.get('benefits', {})
+        notes_data = data.get('notes', {}) # Aggregated notes { '1': 'note', ... }
 
         # --- PDF Generation Logic ---
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_font("Arial", size=12) # Use a font known to support necessary characters if possible, otherwise handle encoding
+        usable_width = pdf.w - pdf.l_margin - pdf.r_margin
+        pdf.set_font("Arial", size=12) # Using core font
 
         # --- Title ---
         pdf.set_font("Arial", 'B', 16)
-        # Encode safely for FPDF (latin-1 is common, replace unsupported chars)
-        pdf.multi_cell(0, 10, "Pflegegradrechner - Ergebnisbericht".encode('latin-1', 'replace').decode('latin-1'), align='C', ln=1)
+        pdf.multi_cell(usable_width, 10, "Pflegegradrechner - Ergebnisbericht".encode('latin-1', 'replace').decode('latin-1'),
+                       align='C', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.ln(10)
 
         # --- Summary ---
         pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 10, "Zusammenfassung".encode('latin-1', 'replace').decode('latin-1'), ln=1)
+        pdf.cell(usable_width, 10, "Zusammenfassung".encode('latin-1', 'replace').decode('latin-1'),
+                 new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.set_font("Arial", size=12)
-        score_text = f"Gesamtpunktzahl (für Pflegegrad): {final_total_score:.2f}"
-        pdf.multi_cell(0, 8, score_text.encode('latin-1', 'replace').decode('latin-1')) # Use multi_cell for score too
+        score_text = f"Gesamtpunktzahl (fuer Pflegegrad): {final_total_score:.2f}"
+        pdf.cell(usable_width, 8, score_text.encode('latin-1', 'replace').decode('latin-1'),
+                 new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pg_text = f"Ermittelter Pflegegrad: {pflegegrad}" if pflegegrad > 0 else "Ermittelter Pflegegrad: Kein Pflegegrad (unter 12.5 Punkte)"
-        pdf.multi_cell(0, 8, pg_text.encode('latin-1', 'replace').decode('latin-1')) # Use multi_cell here too
+        pdf.cell(usable_width, 8, pg_text.encode('latin-1', 'replace').decode('latin-1'),
+                 new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.ln(5)
 
-        # --- Detailed Results (using data parsed from JSON) ---
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 10, "Detailergebnisse nach Modulen".encode('latin-1', 'replace').decode('latin-1'), ln=1)
-        pdf.set_font("Arial", size=10)
+        # --- Benefits Display ---
+        if benefits_data and benefits_data.get('leistungen'):
+             pdf.set_font("Arial", 'B', 12)
+             benefit_title = f"Wichtige Leistungen bei Pflegegrad {pflegegrad}"
+             date_range = benefits_data.get('date_range')
+             if date_range:
+                 benefit_title += f" ({date_range})"
+             pdf.cell(usable_width, 10, benefit_title.encode('latin-1', 'replace').decode('latin-1'),
+                      new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+             pdf.set_font("Arial", size=10)
+             for item_dict in benefits_data.get('leistungen', []):
+                 item_name = item_dict.get('name', '')
+                 item_value = item_dict.get('value', '')
+                 pdf.multi_cell(usable_width, 6, f"- {item_name}: {item_value}".encode('latin-1', 'replace').decode('latin-1'),
+                                new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+             pdf.ln(5)
 
-        # Access data within the parsed detailed_results dictionary
+        # --- Detailed Results ---
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(usable_width, 10, "Detailergebnisse nach Modulen".encode('latin-1', 'replace').decode('latin-1'),
+                 new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
         module_answers_all = detailed_results.get('answers', {})
         module_scores_raw = detailed_results.get('module_scores_raw', {})
         module_scores_weighted = detailed_results.get('module_scores_weighted', {})
         which_module_contributed = detailed_results.get('which_module_contributed_m2_m3')
 
-        # Log data being used for PDF generation loop
-        current_app.logger.info("--- Preparing to loop through modules for PDF ---")
-        current_app.logger.info(f"Detailed Results Data Keys: {list(detailed_results.keys())}")
-        current_app.logger.info(f"Module Answers Keys: {list(module_answers_all.keys())}")
-
-        # Check if module_answers_all is actually a dictionary before iterating
         if isinstance(module_answers_all, dict):
-            # Iterate through modules based on the keys in the answers
-            for module_id_str in sorted(module_answers_all.keys(), key=int):
-                current_app.logger.info(f"Processing Module ID: {module_id_str} for PDF")
+            for module_id_str in sorted(module_answers_all.keys(), key=lambda x: int(x) if x.isdigit() else 999):
+                if not module_id_str.isdigit(): continue
 
                 module_id = int(module_id_str)
                 module_info = all_modules.get(module_id)
-                module_answers = module_answers_all.get(module_id_str, {}) # Should be a dict
+                module_answers = module_answers_all.get(module_id_str, {})
 
-                if not module_info:
-                    current_app.logger.warning(f"Module info not found for ID: {module_id_str}, skipping in PDF.")
-                    continue
+                if not module_info: continue
 
                 pdf.set_font("Arial", 'B', 11)
                 module_name = module_info.get('name', f'Modul {module_id}')
-                pdf.cell(0, 8, f"--- {module_name.encode('latin-1', 'replace').decode('latin-1')} ---", ln=1)
+                pdf.cell(usable_width, 8, f"--- {module_name.encode('latin-1', 'replace').decode('latin-1')} ---",
+                         new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                 pdf.set_font("Arial", size=10)
 
                 raw_score = module_scores_raw.get(module_id_str, 0.0)
                 weighted_score = module_scores_weighted.get(module_id_str, 0.0)
 
-                pdf.cell(0, 6, f"Rohpunkte: {raw_score:.1f}".encode('latin-1', 'replace').decode('latin-1'), ln=1)
-                pdf.cell(0, 6, f"Gewichtete Punkte (aus Tabelle): {weighted_score}".encode('latin-1', 'replace').decode('latin-1'), ln=1)
+                pdf.cell(usable_width, 6, f"Rohpunkte: {float(raw_score):.1f}".encode('latin-1', 'replace').decode('latin-1'),
+                         new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                pdf.cell(usable_width, 6, f"Gewichtete Punkte: {float(weighted_score):.2f}".encode('latin-1', 'replace').decode('latin-1'),
+                         new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-                # Add M2/M3 contribution note
-                if module_id_str == '2' or module_id_str == '3':
-                    note_text = ""
+                if module_id_str in ['2', '3']:
+                    note_text = "(Nicht fuer Gesamtpunktzahl beruecksichtigt)"
                     if which_module_contributed is not None and module_id == which_module_contributed:
-                        note_text = "(Dieser Wert zählt für die Gesamtpunktzahl)"
-                    else:
-                        note_text = "(Nicht für Gesamtpunktzahl berücksichtigt)"
-
-                    if note_text:
-                        pdf.set_font("Arial", 'I', 9)
-                        pdf.cell(0, 5, note_text.encode('latin-1', 'replace').decode('latin-1'), ln=1)
-                        pdf.set_font("Arial", size=10)
+                        note_text = "(Dieser Wert zaehlt fuer die Gesamtpunktzahl)"
+                    pdf.set_font("Arial", 'I', 9)
+                    pdf.cell(usable_width, 5, note_text.encode('latin-1', 'replace').decode('latin-1'),
+                             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                    pdf.set_font("Arial", size=10)
 
                 pdf.ln(2)
                 pdf.set_font("Arial", 'B', 10)
-                pdf.cell(0, 6, "Antworten:".encode('latin-1', 'replace').decode('latin-1'), ln=1)
+                pdf.cell(usable_width, 6, "Antworten:".encode('latin-1', 'replace').decode('latin-1'),
+                         new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                 pdf.set_font("Arial", size=9)
 
-                # Check if module_answers is a dictionary before iterating
                 if isinstance(module_answers, dict) and module_answers:
-                    for q_idx_str, answer_data in sorted(module_answers.items(), key=lambda item: int(item[0])):
-                        if isinstance(answer_data, dict): # Ensure answer_data is a dict
-                            q_text = answer_data.get('question', f'Frage {int(q_idx_str)+1}')
+                    try:
+                        sorted_q_keys = sorted(module_answers.keys(), key=lambda k: int(k) if k.isdigit() else float('inf'))
+                    except ValueError:
+                         sorted_q_keys = sorted(module_answers.keys())
+
+                    for q_key in sorted_q_keys:
+                        if q_key == 'notes': continue
+
+                        answer_data = module_answers[q_key]
+                        if isinstance(answer_data, dict):
+                            q_text = answer_data.get('question', f'Frage {q_key}')
                             a_text = answer_data.get('answer_text', 'N/A')
                             a_score = answer_data.get('score', 'N/A')
-                            full_text = f"- {q_text}: {a_text} ({a_score} Rohpunkte)"
-                            pdf.multi_cell(0, 5, full_text.encode('latin-1', 'replace').decode('latin-1'))
-                        else:
-                            # Log unexpected answer_data format
-                            current_app.logger.warning(f"Unexpected answer_data format for M{module_id_str} Q{q_idx_str}: {answer_data}")
-                            pdf.multi_cell(0, 5, f"- Frage {int(q_idx_str)+1}: Ungültige Antwortdaten".encode('latin-1', 'replace').decode('latin-1'))
-                elif not module_answers:
-                     pdf.cell(0, 5, "- Keine Antworten für dieses Modul vorhanden.".encode('latin-1', 'replace').decode('latin-1'), ln=1)
-                else:
-                    # Log unexpected module_answers format
-                    current_app.logger.warning(f"Unexpected module_answers format for M{module_id_str}: {module_answers}")
-                    pdf.cell(0, 5, "- Ungültige Antwortdaten für dieses Modul.".encode('latin-1', 'replace').decode('latin-1'), ln=1)
 
+                            if answer_data.get('type') == 'frequency':
+                                count = answer_data.get('count', 'N/A')
+                                unit = answer_data.get('unit', 'N/A')
+                                full_text = f"- {q_text}: {count}x pro {unit} ({a_score} Rohpunkte)"
+                            else:
+                                full_text = f"- {q_text}: {a_text} ({a_score} Rohpunkte)"
+
+                            pdf.multi_cell(usable_width, 5, full_text.encode('latin-1', 'replace').decode('latin-1'),
+                                           new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                        else:
+                             pdf.multi_cell(usable_width, 5, f"- Frage {q_key}: Ungültige Antwortdaten".encode('latin-1', 'replace').decode('latin-1'),
+                                            new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                else:
+                     pdf.cell(usable_width, 5, "- Keine Antworten fuer dieses Modul vorhanden.".encode('latin-1', 'replace').decode('latin-1'),
+                              new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+
+                # Display Notes for Module
+                module_note = notes_data.get(module_id_str, '')
+                if module_note:
+                    pdf.ln(2)
+                    pdf.set_font("Arial", 'B', 10)
+                    pdf.cell(usable_width, 6, "Notizen:".encode('latin-1', 'replace').decode('latin-1'),
+                             new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+                    pdf.set_font("Arial", size=9)
+                    pdf.multi_cell(usable_width, 5, module_note.encode('latin-1', 'replace').decode('latin-1'),
+                                   new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
                 pdf.ln(4)
-                current_app.logger.info(f"Finished processing Module ID: {module_id_str} for PDF")
         else:
-            # Log if module_answers_all is not a dictionary
-            current_app.logger.error(f"Expected 'answers' within detailed_results to be a dictionary, but got {type(module_answers_all)}. Skipping detailed answers in PDF.")
-            pdf.set_font("Arial", 'I', 10) # Italic note
-            pdf.multi_cell(0, 6, "Fehler: Detaillierte Antworten konnten nicht geladen werden (ungültiges Datenformat).".encode('latin-1', 'replace').decode('latin-1'))
-
+            pdf.set_font("Arial", 'I', 10)
+            pdf.multi_cell(usable_width, 6, "Fehler: Detaillierte Antworten konnten nicht geladen werden.".encode('latin-1', 'replace').decode('latin-1'),
+                           new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
         # --- Output the PDF ---
-        pdf_output_bytes = bytes(pdf.output())
+        # pdf.output() should return bytes. Add checks and conversion.
+        pdf_data = pdf.output()
+        current_app.logger.info(f"Type returned by pdf.output(): {type(pdf_data)}") # Log the type
+
+        # Ensure it's bytes before returning
+        if isinstance(pdf_data, bytes):
+            pdf_output_bytes = pdf_data
+        elif isinstance(pdf_data, bytearray):
+             pdf_output_bytes = bytes(pdf_data) # Convert bytearray to bytes
+        else:
+            # This case should ideally not happen with modern fpdf2
+            current_app.logger.error(f"pdf.output() returned unexpected type: {type(pdf_data)}. Attempting encoding.")
+            # Fallback: try encoding if it's somehow a string (less likely)
+            try:
+                pdf_output_bytes = str(pdf_data).encode('latin-1', 'replace')
+            except Exception as enc_err:
+                 current_app.logger.error(f"Fallback encoding failed: {enc_err}", exc_info=True)
+                 # Raise an error that will be caught by the outer try/except
+                 raise ValueError("Failed to get PDF output as bytes")
+
+        # Log the type *after* potential conversion
+        current_app.logger.info(f"Type being passed to Response: {type(pdf_output_bytes)}")
 
         return Response(
-            pdf_output_bytes,
+            pdf_output_bytes, # Pass the verified/converted bytes
             mimetype='application/pdf',
-            headers={
-                'Content-Disposition': 'attachment;filename=pflegegrad_results.pdf',
-                'Content-Type': 'application/pdf' # Content-Type is technically redundant here but doesn't hurt
-            }
+            headers={'Content-Disposition': 'attachment;filename=pflegegrad_results.pdf'}
         )
 
     except Exception as e:
-        # Log the error including traceback
         current_app.logger.error(f"Error generating PDF: {e}", exc_info=True)
-        # Flash a user-friendly message (might not be visible if it's an API call)
-        flash(f"Ein Fehler ist beim Erstellen des PDFs aufgetreten: {e}", "error")
-        # Return a server error response
         return jsonify({"error": f"An internal server error occurred during PDF generation: {e}"}), 500
 
-
 # ... (rest of app.py, including if __name__ == '__main__':) ...
-    
+# ... (rest of app.py, including if __name__ == '__main__':) ...
 
 if __name__ == '__main__':
-    # Use a more specific host and port if needed, e.g., host='0.0.0.0' for external access
-    app.run(debug=True, port=5001) # Changed port to 5001 to avoid potential conflicts
+    app.run(debug=True, port=5001)
