@@ -26,45 +26,44 @@ all_modules = {
 }
 TOTAL_MODULES = len(all_modules)
 
+# Corrected mapping tables based on NBA-Punkts.rtf
+# Note: M2 and M3 are handled separately in the calculate function
 weighted_score_mapping_tables = {
-    1: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 10), (12, 10), (13, 10), (14, 10), (15, 10)],
-    2: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 14), (15, 15), (16, 15), (17, 15), (18, 15), (19, 15), (20, 15), (21, 15), (22, 15), (23, 15), (24, 15), (25, 15), (26, 15), (27, 15), (28, 15), (29, 15), (30, 15), (31, 15), (32, 15), (33, 15)],
-    3: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 5), (7, 5), (8, 5), (9, 5), (10, 10), (11, 10), (12, 10), (13, 10), (14, 10), (15, 15), (16, 15), (17, 15), (18, 15), (19, 15), (20, 15), (21, 15), (22, 15), (23, 15), (24, 15), (25, 15), (26, 15), (27, 15), (28, 15), (29, 15), (30, 15), (31, 15), (32, 15), (33, 15), (34, 15), (35, 15), (36, 15), (37, 15), (38, 15), (39, 15), (40, 15), (41, 15), (42, 15), (43, 15), (44, 15), (45, 15), (46, 15), (47, 15), (48, 15), (49, 15), (50, 15), (51, 15), (52, 15), (53, 15), (54, 15), (55, 15), (56, 15), (57, 15), (58, 15), (59, 15), (60, 15), (61, 15), (62, 15), (63, 15), (64, 15), (65, 15)],
-    4: [(0, 0), (1, 2.5), (2, 5), (3, 7.5), (4, 10), (5, 12.5), (6, 15), (7, 17.5), (8, 20), (9, 22.5), (10, 25), (11, 27.5), (12, 30), (13, 32.5), (14, 35), (15, 37.5), (16, 40), (17, 40), (18, 40), (19, 40), (20, 40), (21, 40), (22, 40), (23, 40), (24, 40), (25, 40), (26, 40), (27, 40), (28, 40), (29, 40), (30, 40), (31, 40), (32, 40), (33, 40), (34, 40), (35, 40), (36, 40), (37, 40), (38, 40), (39, 40), (40, 40), (41, 40), (42, 40), (43, 40), (44, 40), (45, 40), (46, 40), (47, 40), (48, 40)],
-    5: [(0, 0), (1, 5), (2, 10), (3, 15), (4, 20), (5, 20), (6, 20), (7, 20), (8, 20), (9, 20), (10, 20), (11, 20), (12, 20), (13, 20), (14, 20), (15, 20)],
-    6: [(0, 0), (1, 1.25), (2, 2.5), (3, 3.75), (4, 5), (5, 6.25), (6, 7.5), (7, 8.75), (8, 10), (9, 11.25), (10, 12.5), (11, 13.75), (12, 15), (13, 15), (14, 15), (15, 15), (16, 15), (17, 15), (18, 15)]
+    # Module 1: Mobilität (10%)
+    1: [(0, 0.0), (2, 2.5), (4, 5.0), (6, 7.5), (10, 10.0)],
+    # Module 4: Selbstversorgung (40%)
+    4: [(0, 0.0), (3, 10.0), (8, 20.0), (19, 30.0), (37, 40.0)],
+    # Module 5: Umgang mit krankheits-/therapiebedingten Anforderungen (20%)
+    # Note: The RTF document seems to have slightly different ranges than the original doc.
+    # Using RTF ranges: 0=0, 1=5, 2-3=10, 4-5=15, 6-15=20
+    5: [(0, 0.0), (1, 5.0), (2, 10.0), (4, 15.0), (6, 20.0)],
+    # Module 6: Gestaltung des Alltagslebens und sozialer Kontakte (15%)
+    6: [(0, 0.0), (1, 3.75), (4, 7.5), (7, 11.25), (12, 15.0)]
 }
 
-# ... (rest of app setup: all_modules, TOTAL_MODULES, pflegegrad_thresholds) ...
+# Special mapping table for the combined Modules 2 & 3 score (15%)
+# Input is the MAX(raw_score_m2, raw_score_m3)
+weighted_score_mapping_m2_m3 = [
+    (0, 0.0), (2, 3.75), (6, 7.5), (11, 11.25), (17, 15.0)
+]
 
-# In app.py
-# ... (imports, config, RAW_TO_WEIGHTED_MAPPING) ...
-
-def map_raw_to_weighted_score(module_id, raw_score):
-    """Maps raw score to weighted score based on predefined tables."""
-    try:
-        module_id = int(module_id)
-    except (ValueError, TypeError):
-        current_app.logger.error(f"Invalid module_id type for weighted score mapping: {module_id}")
-        return 0.0
-
-    if module_id not in weighted_score_mapping_tables:
-        current_app.logger.warning(f"Weighted score mapping table not found for module_id: {module_id}")
-        return 0.0
-
-    mapping_table = weighted_score_mapping_tables[module_id]
+def map_raw_to_weighted_score(mapping_table, raw_score):
+    """Maps raw score to weighted score using a specific mapping table."""
     weighted_score = 0.0
-
     try:
+        # Ensure raw_score is a number, default to 0 if not
         raw_score = float(raw_score)
     except (ValueError, TypeError):
-         current_app.logger.warning(f"Invalid raw_score type for weighted score mapping (Module {module_id}): {raw_score}")
-         return 0.0
+         # Log this potential issue
+         current_app.logger.warning(f"Invalid raw_score type for weighted score mapping: {raw_score}")
+         raw_score = 0.0
 
+    # Iterate through the table (sorted by raw score threshold)
     for table_raw, table_weighted in mapping_table:
         if raw_score >= table_raw:
             weighted_score = table_weighted
         else:
+            # Since the table is sorted, we can stop early
             break
     return float(weighted_score)
 
@@ -87,18 +86,6 @@ def calculate_frequency_score(count, unit):
 # ... (rest of app setup) ...
 
 # ... (other imports) ...
-
-# In app.py
-
-# --- Helper Function ---
-weighted_score_mapping_tables = {
-    1: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 10), (12, 10), (13, 10), (14, 10), (15, 10)],
-    2: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 14), (15, 15), (16, 15), (17, 15), (18, 15), (19, 15), (20, 15), (21, 15), (22, 15), (23, 15), (24, 15), (25, 15), (26, 15), (27, 15), (28, 15), (29, 15), (30, 15), (31, 15), (32, 15), (33, 15)],
-    3: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 5), (7, 5), (8, 5), (9, 5), (10, 10), (11, 10), (12, 10), (13, 10), (14, 10), (15, 15), (16, 15), (17, 15), (18, 15), (19, 15), (20, 15), (21, 15), (22, 15), (23, 15), (24, 15), (25, 15), (26, 15), (27, 15), (28, 15), (29, 15), (30, 15), (31, 15), (32, 15), (33, 15), (34, 15), (35, 15), (36, 15), (37, 15), (38, 15), (39, 15), (40, 15), (41, 15), (42, 15), (43, 15), (44, 15), (45, 15), (46, 15), (47, 15), (48, 15), (49, 15), (50, 15), (51, 15), (52, 15), (53, 15), (54, 15), (55, 15), (56, 15), (57, 15), (58, 15), (59, 15), (60, 15), (61, 15), (62, 15), (63, 15), (64, 15), (65, 15)],
-    4: [(0, 0), (1, 2.5), (2, 5), (3, 7.5), (4, 10), (5, 12.5), (6, 15), (7, 17.5), (8, 20), (9, 22.5), (10, 25), (11, 27.5), (12, 30), (13, 32.5), (14, 35), (15, 37.5), (16, 40), (17, 40), (18, 40), (19, 40), (20, 40), (21, 40), (22, 40), (23, 40), (24, 40), (25, 40), (26, 40), (27, 40), (28, 40), (29, 40), (30, 40), (31, 40), (32, 40), (33, 40), (34, 40), (35, 40), (36, 40), (37, 40), (38, 40), (39, 40), (40, 40), (41, 40), (42, 40), (43, 40), (44, 40), (45, 40), (46, 40), (47, 40), (48, 40)],
-    5: [(0, 0), (1, 5), (2, 10), (3, 15), (4, 20), (5, 20), (6, 20), (7, 20), (8, 20), (9, 20), (10, 20), (11, 20), (12, 20), (13, 20), (14, 20), (15, 20)],
-    6: [(0, 0), (1, 1.25), (2, 2.5), (3, 3.75), (4, 5), (5, 6.25), (6, 7.5), (7, 8.75), (8, 10), (9, 11.25), (10, 12.5), (11, 13.75), (12, 15), (13, 15), (14, 15), (15, 15), (16, 15), (17, 15), (18, 15)]
-}
 
 # --- Routes ---
 
