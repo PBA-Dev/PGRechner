@@ -26,44 +26,98 @@ all_modules = {
 }
 TOTAL_MODULES = len(all_modules)
 
-# Corrected mapping tables based on NBA-Punkts.rtf
-# Note: M2 and M3 are handled separately in the calculate function
 weighted_score_mapping_tables = {
-    # Module 1: Mobilität (10%)
-    1: [(0, 0.0), (2, 2.5), (4, 5.0), (6, 7.5), (10, 10.0)],
-    # Module 4: Selbstversorgung (40%)
-    4: [(0, 0.0), (3, 10.0), (8, 20.0), (19, 30.0), (37, 40.0)],
-    # Module 5: Umgang mit krankheits-/therapiebedingten Anforderungen (20%)
-    # Note: The RTF document seems to have slightly different ranges than the original doc.
-    # Using RTF ranges: 0=0, 1=5, 2-3=10, 4-5=15, 6-15=20
-    5: [(0, 0.0), (1, 5.0), (2, 10.0), (4, 15.0), (6, 20.0)],
-    # Module 6: Gestaltung des Alltagslebens und sozialer Kontakte (15%)
-    6: [(0, 0.0), (1, 3.75), (4, 7.5), (7, 11.25), (12, 15.0)]
+    # Module 1: Mobilität (Gewichtung: 10%)
+    # Rohpunkte: 0 -> 0; 1-2 -> 2.5; 3-4 -> 5.0; 5-6 -> 7.5; 7-15 -> 10.0
+    1: [
+        (0, 0.0),
+        (1, 2.5),
+        (3, 5.0),
+        (5, 7.5),
+        (7, 10.0)
+    ],
+
+    # Module 4: Selbstversorgung (Gewichtung: 40%)
+    # Rohpunkte: 0-2 -> 0; 3-7 -> 10.0; 8-18 -> 20.0; 19-36 -> 30.0; 37-54 -> 40.0
+    4: [
+        (0, 0.0),
+        (3, 10.0),
+        (8, 20.0),
+        (19, 30.0),
+        (37, 40.0)
+    ],
+
+    # Module 5: Bewältigung von krankheits- oder therapiebedingten Anforderungen und Belastungen (Gewichtung: 20%)
+    # Rohpunkte: 0 -> 0; 1 -> 5.0; 2-3 -> 10.0; 4-5 -> 15.0; 6-15 -> 20.0
+    # IMPORTANT: The raw score input to this mapping MUST be capped at 15 beforehand.
+    5: [
+        (0, 0.0),
+        (1, 5.0),
+        (2, 10.0),
+        (4, 15.0),
+        (6, 20.0) # Note: Raw scores > 15 should be treated as 15 before mapping.
+                 # The mapping logic handles this implicitly if the input is capped.
+                 # A raw score of 6 or more maps to 20.
+    ],
+
+    # Module 6: Gestaltung des Alltagslebens und sozialer Kontakte (Gewichtung: 15%)
+    # Rohpunkte: 0 -> 0; 1-3 -> 3.75; 4-6 -> 7.5; 7-11 -> 11.25; 12-18 -> 15.0
+    6: [
+        (0, 0.0),
+        (1, 3.75),
+        (4, 7.5),
+        (7, 11.25),
+        (12, 15.0)
+    ]
 }
 
-# Special mapping table for the combined Modules 2 & 3 score (15%)
-# Input is the MAX(raw_score_m2, raw_score_m3)
+# Special mapping table for the combined Modules 2 & 3 score (Gewichtung: 15%)
+# Input is the MAXIMUM raw score from Module 2 or Module 3.
+# Rohpunkte (Max(M2, M3)): 0-1 -> 0; 2-5 -> 3.75; 6-10 -> 7.5; 11-16 -> 11.25; 17+ -> 15.0
 weighted_score_mapping_m2_m3 = [
-    (0, 0.0), (2, 3.75), (6, 7.5), (11, 11.25), (17, 15.0)
+    (0, 0.0),
+    (2, 3.75),
+    (6, 7.5),
+    (11, 11.25),
+    (17, 15.0)
 ]
 
+# --- Function to Map Raw Score to Weighted Score ---
+
 def map_raw_to_weighted_score(mapping_table, raw_score):
-    """Maps raw score to weighted score using a specific mapping table."""
+    """
+    Maps a raw score to its corresponding weighted score using a given mapping table.
+
+    The mapping tables define thresholds. The function finds the highest threshold
+    that the raw_score meets or exceeds and returns the associated weighted score.
+
+    Args:
+        mapping_table (list): A list of tuples, where each tuple is
+                              (raw_score_threshold, weighted_score).
+                              The list MUST be sorted by raw_score_threshold ascending.
+        raw_score (float or int): The raw score to map.
+
+    Returns:
+        float: The calculated weighted score. Returns 0.0 if the input
+               raw_score is invalid or cannot be converted to a float.
+    """
     weighted_score = 0.0
     try:
         # Ensure raw_score is a number, default to 0 if not
         raw_score = float(raw_score)
     except (ValueError, TypeError):
-         # Log this potential issue
-         current_app.logger.warning(f"Invalid raw_score type for weighted score mapping: {raw_score}")
+         # Consider logging this issue if it happens frequently
+         # print(f"Warning: Invalid raw_score type for weighted score mapping: {raw_score}")
          raw_score = 0.0
 
     # Iterate through the table (sorted by raw score threshold)
+    # Find the highest weighted score where raw_score >= table_raw_score
     for table_raw, table_weighted in mapping_table:
         if raw_score >= table_raw:
             weighted_score = table_weighted
         else:
-            # Since the table is sorted, we can stop early
+            # Since the table is sorted by raw score threshold,
+            # we've gone past the applicable range and can stop early.
             break
     return float(weighted_score)
 
@@ -457,48 +511,6 @@ def calculate():
         # Add TOTAL_MODULES if used in result.html
         # TOTAL_MODULES=TOTAL_MODULES
     )
-
-# Make sure calculate_frequency_score, all_modules, pflegegrad_thresholds,
-
-# Example structure (should be in config or app.py)
-weighted_score_mapping_tables = {
-    1: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 10), (12, 10), (13, 10), (14, 10), (15, 10)], # Example M1 mapping
-    2: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 6), (7, 7), (8, 8), (9, 9), (10, 10), (11, 11), (12, 12), (13, 13), (14, 14), (15, 15), (16, 15), (17, 15), (18, 15), (19, 15), (20, 15), (21, 15), (22, 15), (23, 15), (24, 15), (25, 15), (26, 15), (27, 15), (28, 15), (29, 15), (30, 15), (31, 15), (32, 15), (33, 15)], # Example M2 mapping
-    3: [(0, 0), (1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 5), (7, 5), (8, 5), (9, 5), (10, 10), (11, 10), (12, 10), (13, 10), (14, 10), (15, 15), (16, 15), (17, 15), (18, 15), (19, 15), (20, 15), (21, 15), (22, 15), (23, 15), (24, 15), (25, 15), (26, 15), (27, 15), (28, 15), (29, 15), (30, 15), (31, 15), (32, 15), (33, 15), (34, 15), (35, 15), (36, 15), (37, 15), (38, 15), (39, 15), (40, 15), (41, 15), (42, 15), (43, 15), (44, 15), (45, 15), (46, 15), (47, 15), (48, 15), (49, 15), (50, 15), (51, 15), (52, 15), (53, 15), (54, 15), (55, 15), (56, 15), (57, 15), (58, 15), (59, 15), (60, 15), (61, 15), (62, 15), (63, 15), (64, 15), (65, 15)], # Example M3 mapping
-    4: [(0, 0), (1, 2.5), (2, 5), (3, 7.5), (4, 10), (5, 12.5), (6, 15), (7, 17.5), (8, 20), (9, 22.5), (10, 25), (11, 27.5), (12, 30), (13, 32.5), (14, 35), (15, 37.5), (16, 40), (17, 40), (18, 40), (19, 40), (20, 40), (21, 40), (22, 40), (23, 40), (24, 40), (25, 40), (26, 40), (27, 40), (28, 40), (29, 40), (30, 40), (31, 40), (32, 40), (33, 40), (34, 40), (35, 40), (36, 40), (37, 40), (38, 40), (39, 40), (40, 40), (41, 40), (42, 40), (43, 40), (44, 40), (45, 40), (46, 40), (47, 40), (48, 40)], # Example M4 mapping
-    5: [(0, 0), (1, 5), (2, 10), (3, 15), (4, 20), (5, 20), (6, 20), (7, 20), (8, 20), (9, 20), (10, 20), (11, 20), (12, 20), (13, 20), (14, 20), (15, 20)], # Example M5 mapping
-    6: [(0, 0), (1, 1.25), (2, 2.5), (3, 3.75), (4, 5), (5, 6.25), (6, 7.5), (7, 8.75), (8, 10), (9, 11.25), (10, 12.5), (11, 13.75), (12, 15), (13, 15), (14, 15), (15, 15), (16, 15), (17, 15), (18, 15)], # Example M6 mapping
-}
-
-def map_raw_to_weighted_score(module_id, raw_score):
-    """Maps raw score to weighted score based on predefined tables."""
-    if module_id not in weighted_score_mapping_tables:
-        return 0.0 # Or raise error
-
-    mapping_table = weighted_score_mapping_tables[module_id]
-    weighted_score = 0.0
-    # Find the highest weighted score where raw_score >= table_raw_score
-    for table_raw, table_weighted in mapping_table:
-        if raw_score >= table_raw:
-            weighted_score = table_weighted
-        else:
-            # Since table is sorted by raw score, we can stop early
-            break
-    return weighted_score
-
-# Ensure pflegegrad_thresholds is defined or imported
-pflegegrad_thresholds = {
-    1: {'min_points': 12.5, 'max_points': 26.9},
-    2: {'min_points': 27, 'max_points': 47.4},
-    3: {'min_points': 47.5, 'max_points': 69.9},
-    4: {'min_points': 70, 'max_points': 89.9},
-    5: {'min_points': 90, 'max_points': 100}
-}
-# ... (generate_pdf route) ...
-
-
-# d:\Users\SSH\OneDrive\1_-_SunState_Health,_LLC\.-Optimum_Pflege\ProgFold\PGRechner\PGRechner\app.py
-# ... (imports and other code remain the same) ...
 
 # --- PDF Generation Route ---
 # d:\Users\SSH\OneDrive\1_-_SunState_Health,_LLC\.-Optimum_Pflege\ProgFold\PGRechner\PGRechner\app.py
