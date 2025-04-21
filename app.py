@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import math # Needed for ceiling if using strict < comparison
 from flask import Flask, render_template, request, make_response, url_for, session, redirect, flash, Response, current_app, jsonify
 from fpdf import FPDF
 from fpdf.enums import XPos, YPos
@@ -83,6 +84,131 @@ def calculate_frequency_score(count, unit):
     elif 'monat' in unit or 'month' in unit: return 1
     else: return 0
 
+# --- Helper Function for Module 5 ---
+# --- UPDATED Helper Function for Module 5 ---
+def calculate_module5_raw_score(module5_answers):
+    """Calculates the raw score for Module 5 based on detailed rules, using keys from module5.py."""
+    print(f"DEBUG: calculate_module5_raw_score received: {module5_answers}") # Keep for debugging
+
+    # Helper to safely get count and unit using the correct keys
+    def get_freq_data(answers, key):
+        data = answers.get(key, {}) # Use the key directly (e.g., '5.1.1')
+        count = 0
+        try:
+            # Expecting 'count' and 'unit' keys from module_page_submit
+            count = float(data.get('count', 0))
+        except (ValueError, TypeError):
+            count = 0
+        unit = data.get('unit', '').lower().replace('pro ', '') # Get unit, ensure lowercase, remove "pro "
+        return count, unit
+
+    # --- Part 1: Items 5.1.1 - 5.1.7 (Medikation to Hilfsmittel) ---
+    daily_sum_p1 = 0.0
+    weekly_sum_p1 = 0.0
+    monthly_sum_p1 = 0.0
+    # *** USE CORRECT KEYS FROM module5.py ***
+    part1_keys = [f'5.1.{i}' for i in range(1, 8)] # Keys 5.1.1 to 5.1.7
+
+    for key in part1_keys:
+        count, unit = get_freq_data(module5_answers, key)
+        if unit == 'tag':
+            daily_sum_p1 += count
+        elif unit == 'woche':
+            weekly_sum_p1 += count
+        elif unit == 'monat':
+            monthly_sum_p1 += count
+
+    avg_per_day_p1 = round(daily_sum_p1 + (weekly_sum_p1 / 7.0) + (monthly_sum_p1 / 30.0), 4)
+
+    points_part1 = 0
+    if avg_per_day_p1 >= 1 and avg_per_day_p1 <= 3:
+        points_part1 = 1
+    elif avg_per_day_p1 > 3 and avg_per_day_p1 <= 8:
+        points_part1 = 2
+    elif avg_per_day_p1 > 8:
+        points_part1 = 3
+    print(f"DEBUG M5 Part 1: avg={avg_per_day_p1}, points={points_part1}") # Keep for debugging
+
+    # --- Part 2: Items 5.2.1 - 5.2.4 (Verband to Therapiemaßnahmen) ---
+    daily_sum_p2 = 0.0
+    weekly_sum_p2 = 0.0
+    monthly_sum_p2 = 0.0
+    # *** USE CORRECT KEYS FROM module5.py ***
+    part2_keys = [f'5.2.{i}' for i in range(1, 5)] # Keys 5.2.1 to 5.2.4
+
+    for key in part2_keys:
+        count, unit = get_freq_data(module5_answers, key)
+        if unit == 'tag':
+            daily_sum_p2 += count
+        elif unit == 'woche':
+            weekly_sum_p2 += count
+        elif unit == 'monat':
+            monthly_sum_p2 += count
+
+    avg_per_day_p2 = round(daily_sum_p2 + (weekly_sum_p2 / 7.0) + (monthly_sum_p2 / 30.0), 4)
+
+    points_part2 = 0
+    if avg_per_day_p2 >= (1.0/7.0) and avg_per_day_p2 < 1.0:
+        points_part2 = 1
+    elif avg_per_day_p2 >= 1.0 and avg_per_day_p2 < 3.0:
+        points_part2 = 2
+    elif avg_per_day_p2 >= 3.0:
+        points_part2 = 3
+    print(f"DEBUG M5 Part 2: avg={avg_per_day_p2}, points={points_part2}") # Keep for debugging
+
+
+    # --- Part 3: Items 5.3.1 (Intensiv), 5.4.1-5.4.3 (Besuche) ---
+    # Mapping document logic to module5.py keys:
+    # Doc 4.5.12 (Intensive) -> module5.py '5.3.1'
+    # Doc 4.5.15 (Extended Visits) -> module5.py '5.4.3'
+    # Doc 4.5.13 (Regular Visits) -> module5.py '5.4.1'
+    # Doc 4.5.14 (Other Visits <=3h) -> module5.py '5.4.2'
+    # Doc 4.5.K (Early Support) -> Not present in module5.py, ignore for now.
+    intermediate_sum_part3 = 0.0
+
+    # Item 5.3.1 (Intensive)
+    count, unit = get_freq_data(module5_answers, '5.3.1')
+    if unit == 'tag': intermediate_sum_part3 += 60.0
+    elif unit == 'woche': intermediate_sum_part3 += count * 8.6
+    elif unit == 'monat': intermediate_sum_part3 += count * 2.0
+
+    # Item 5.4.3 (Extended Visits >3h)
+    count, unit = get_freq_data(module5_answers, '5.4.3')
+    if unit == 'woche': intermediate_sum_part3 += count * 8.6
+    elif unit == 'monat': intermediate_sum_part3 += count * 2.0
+
+    # Items 5.4.1 (Arzt) and 5.4.2 (Other <=3h)
+    for key in ['5.4.1', '5.4.2']:
+         count, unit = get_freq_data(module5_answers, key)
+         if unit == 'woche': intermediate_sum_part3 += count * 4.3
+         elif unit == 'monat': intermediate_sum_part3 += count * 1.0
+
+    intermediate_sum_part3 = round(intermediate_sum_part3, 4)
+
+    points_part3 = 0
+    if intermediate_sum_part3 >= 4.3 and intermediate_sum_part3 < 60.0:
+         points_part3 = 1
+    elif intermediate_sum_part3 >= 60.0:
+         points_part3 = 6
+    print(f"DEBUG M5 Part 3: sum={intermediate_sum_part3}, points={points_part3}") # Keep for debugging
+
+    # --- Part 4: Item 5.5.1 (Diät) ---
+    # *** USE CORRECT KEY FROM module5.py ***
+    answer_data_p4 = module5_answers.get('5.5.1', {})
+    points_part4 = 0
+    try:
+        # Get score directly as saved by module_page_submit
+        points_part4 = int(answer_data_p4.get('score', 0))
+        if points_part4 not in [0, 1, 2, 3]: points_part4 = 0
+    except (ValueError, TypeError):
+        points_part4 = 0
+    print(f"DEBUG M5 Part 4: points={points_part4}") # Keep for debugging
+
+    # --- Final Raw Score ---
+    raw_score_m5 = points_part1 + points_part2 + points_part3 + points_part4
+    print(f"DEBUG M5 Final Raw: {raw_score_m5}") # Keep for debugging
+
+    return raw_score_m5
 # ... (rest of app setup) ...
 
 # ... (other imports) ...
@@ -248,141 +374,106 @@ def module_page(module_id):
 
 
 # --- Route for HANDLING module submission (POST requests) ---
-@app.route('/module/<int:module_id>', methods=['POST'], endpoint='module_page_submit') # Explicit endpoint name
+@app.route('/module/<int:module_id>/submit', methods=['POST'])
 def module_page_submit(module_id):
-    # Keep the entire logic from the previous step here
-    # (Checking module_id, initializing session, storing answers for M5,
-    # storing answers for other modules, storing notes, redirecting)
+    module_id_str = str(module_id)
     if module_id not in all_modules:
         flash("Ungültiges Modul.", "error")
         return redirect(url_for('intro'))
 
     module_data = all_modules[module_id]
-    module_id_str = str(module_id)
+    current_answers = {} # *** Use a temporary dictionary ***
 
-    # Initialize session storage if not present
-    if 'module_answers' not in session:
-        session['module_answers'] = {}
-    if module_id_str not in session['module_answers']:
-        session['module_answers'][module_id_str] = {}
-
-    # --- Store answers ---
+    # --- THIS IS THE NEW CODE BLOCK ---
     if module_id == 5:
-        # --- Module 5: Handle parts, frequency and standard questions ---
+        # --- Handle Module 5 (Frequency and Standard) ---
         for part in module_data.get('parts', []):
             for question in part.get('questions', []):
-                question_key = question['id'] # Use the unique question ID (e.g., '5.1.1')
+                question_key = question['id'] # Use the specific ID like '5.1.1'
 
                 if question.get('type') == 'frequency':
-                    count_key = f'freq_count_{question_key}'
-                    unit_key = f'freq_unit_{question_key}'
-                    answered_key = f'answered_{question_key}' # Check if user interacted
+                    count_str = request.form.get(f'freq_count_{question_key}')
+                    unit = request.form.get(f'freq_unit_{question_key}')
 
-                    # Only process if the hidden 'answered' field was sent
-                    if answered_key in request.form:
-                        count = request.form.get(count_key, 0)
-                        unit = request.form.get(unit_key, '')
-                        score = calculate_frequency_score(count, unit)
-                        answer_text = f"{count}x pro {unit}" if score > 0 else "Entfällt/Selbständig"
+                    count = 0
+                    try:
+                        if count_str:
+                           count = float(count_str)
+                           if count < 0: count = 0
+                    except (ValueError, TypeError):
+                        count = 0
 
-                        session['module_answers'][module_id_str][question_key] = {
-                            'question': question['text'],
-                            'answer_text': answer_text,
-                            'score': score,
-                            'count': count,
-                            'unit': unit
-                        }
-                    else:
-                         session['module_answers'][module_id_str].pop(question_key, None)
+                    current_answers[question_key] = {
+                        'count': count,
+                        'unit': unit if unit else ''
+                    }
+                    # Add text description (optional)
+                    current_answers[question_key]['text'] = f"{count}x pro {unit}" if count > 0 and unit else "Entfällt/Selbständig"
 
                 elif question.get('type') == 'standard':
-                    answer_key = f'answer_{module_id}_{question_key}'
-                    selected_option_index = request.form.get(answer_key)
-                    if selected_option_index is not None:
-                        try:
-                            option_index = int(selected_option_index)
-                            if 0 <= option_index < len(question['options']):
-                                selected_option = question['options'][option_index]
-                                session['module_answers'][module_id_str][question_key] = {
-                                    'question': question['text'],
-                                    'answer_text': selected_option['text'],
-                                    'score': selected_option.get('score', 0),
-                                    'option_index': option_index
-                                }
-                            else: session['module_answers'][module_id_str].pop(question_key, None)
-                        except ValueError: session['module_answers'][module_id_str].pop(question_key, None)
-                    else: session['module_answers'][module_id_str].pop(question_key, None)
+                    answer_key = f'answer_{module_id_str}_{question_key}'
+                    selected_option_index_str = request.form.get(answer_key)
 
-                else: # Fallback/Default
-                    answer_key = f'answer_{module_id}_{question_key}'
-                    selected_option_index = request.form.get(answer_key)
-                    if selected_option_index is not None:
+                    if selected_option_index_str is not None:
                         try:
-                            option_index = int(selected_option_index)
-                            if 0 <= option_index < len(question['options']):
-                                selected_option = question['options'][option_index]
-                                session['module_answers'][module_id_str][question_key] = {
-                                    'question': question['text'],
-                                    'answer_text': selected_option['text'],
-                                    'score': selected_option.get('score', 0),
-                                    'option_index': option_index
+                            selected_option_index = int(selected_option_index_str)
+                            options = question.get('options', [])
+                            if 0 <= selected_option_index < len(options):
+                                selected_option = options[selected_option_index]
+                                current_answers[question_key] = {
+                                    'option_index': selected_option_index,
+                                    'text': selected_option.get('text', ''),
+                                    'score': selected_option.get('score', 0)
                                 }
-                            else: session['module_answers'][module_id_str].pop(question_key, None)
-                        except ValueError: session['module_answers'][module_id_str].pop(question_key, None)
-                    else: session['module_answers'][module_id_str].pop(question_key, None)
+                        except ValueError:
+                            pass
+                # else: handle other types if they exist
 
-    else: # Standard handling for modules 1, 2, 3, 4, 6
-        for i, question in enumerate(module_data.get('questions', [])):
-            question_index_str = str(i)
-            # Use .get() for question text with a default value
-            question_text = question.get('text', f'Unbekannte Frage {i+1}')
-            answer_key = f'answer_{module_id}_{i}'
-            selected_option_index = request.form.get(answer_key)
-            if selected_option_index is not None:
+    else:
+        # --- Handle Standard Modules (1, 2, 3, 4, 6) ---
+        for question_index, question in enumerate(module_data.get('questions', [])):
+            question_index_str = str(question_index)
+            answer_key = f'answer_{module_id_str}_{question_index_str}'
+            selected_option_index_str = request.form.get(answer_key)
+
+            if selected_option_index_str is not None:
                 try:
-                    option_index = int(selected_option_index)
+                    selected_option_index = int(selected_option_index_str)
                     options = question.get('options', [])
-                    if 0 <= option_index < len(options):
-                        selected_option = options[option_index]
-                        if isinstance(selected_option, dict):
-                            session['module_answers'][module_id_str][question_index_str] = {
-                                'question': question_text,
-                                'answer_text': selected_option.get('text', 'N/A'),
-                                'score': selected_option.get('score', 0),
-                                'option_index': option_index,
-                                'type': 'standard'
-                            }
-                        else:
-                            current_app.logger.error(f"Invalid option format for M{module_id} Q{i} Opt{option_index}: {selected_option}")
-                            session['module_answers'][module_id_str].pop(question_index_str, None)
-                    else:
-                         session['module_answers'][module_id_str].pop(question_index_str, None)
+                    if 0 <= selected_option_index < len(options):
+                        selected_option = options[selected_option_index]
+                        current_answers[question_index_str] = {
+                            'option_index': selected_option_index,
+                            'text': selected_option.get('text', ''),
+                            'score': selected_option.get('score', 0)
+                        }
                 except ValueError:
-                     session['module_answers'][module_id_str].pop(question_index_str, None)
-                except TypeError:
-                     current_app.logger.error(f"Invalid options format for M{module_id} Q{i}: {options}")
-                     session['module_answers'][module_id_str].pop(question_index_str, None)
-            else:
-                 session['module_answers'][module_id_str].pop(question_index_str, None)
+                    pass
+    # --- END OF NEW CODE BLOCK ---
 
-    # --- Store Notes ---
-    notes_key = f'module_{module_id}_notes'
+    # --- Store Notes --- (Keep your existing logic here)
+    notes_key = f'module_{module_id_str}_notes'
     notes_text = request.form.get(notes_key, '').strip()
     if notes_text:
-        session['module_answers'][module_id_str]['notes'] = notes_text
-    else:
-        session['module_answers'][module_id_str].pop('notes', None)
+        current_answers['notes'] = notes_text # Add notes to the temporary dict
 
-    session.modified = True
+    # Mark module as visited (Add this to the temporary dict)
+    current_answers['visited'] = True
 
-    # --- Determine next step ---
+    # --- Update session data --- (Update the session with the temporary dict)
+    if 'module_answers' not in session:
+        session['module_answers'] = {}
+    # Replace the entire entry for this module with the new answers
+    session['module_answers'][module_id_str] = current_answers
+    session.modified = True # Ensure session is saved
+
+    # --- Determine next step --- (Keep your existing logic here)
     next_module_id = module_id + 1
     if next_module_id > TOTAL_MODULES:
         return redirect(url_for('calculate'))
     else:
         # Redirect to the GET endpoint for the next module
         return redirect(url_for('module_page', module_id=next_module_id))
-
 
 # --- Update calculate function ---
 @app.route('/calculate')
@@ -392,40 +483,53 @@ def calculate():
         return redirect(url_for('intro'))
 
     all_answers = session.get('module_answers', {})
-    module_scores_raw = {}
-    # module_scores_weighted = {} # We will create this in the corrected section below
+    module_scores_raw = {} # To store raw scores for ALL modules
     all_detailed_answers = {} # To store text and score for results page/PDF
 
-    # --- Calculate Raw Scores and Collect Detailed Answers ---
-    # (This part remains unchanged)
+    # --- Calculate Raw Scores (M1-4, M6) and Collect Detailed Answers ---
+    # This loop handles the standard summation for modules other than 5
     for module_id_str, answers in all_answers.items():
-        try: # Add try-except for robustness
+        try:
             module_id = int(module_id_str)
             if module_id not in all_modules: continue
+            if module_id == 5: continue # Skip Module 5 raw score calculation here
         except ValueError:
-            continue # Skip if key is not an integer
+            continue
 
         module_data = all_modules[module_id]
         current_module_raw_score = 0.0
         current_detailed_answers = {}
 
+        # Iterate through stored answers, excluding notes/visited
         for q_key, answer_data in answers.items():
             if q_key not in ['notes', 'visited'] and isinstance(answer_data, dict):
-                try: # Add try-except for robustness
+                try:
+                    # Standard summation for M1, M2, M3, M4, M6
                     current_module_raw_score += float(answer_data.get('score', 0))
                 except (ValueError, TypeError):
                     pass # Ignore non-numeric scores
-                # Store details regardless of score validity for display
+                # Store details for display
                 current_detailed_answers[q_key] = answer_data
 
+        # Store raw score for M1, M2, M3, M4, M6
         module_scores_raw[module_id_str] = current_module_raw_score
-        all_detailed_answers[module_id_str] = current_detailed_answers
+        all_detailed_answers[module_id_str] = current_detailed_answers # Store details
 
-    # --- CORRECTED: Map Raw Scores to Weighted Scores ---
-    # Initialize dictionary for weighted scores (M1, M4, M5, M6 + placeholders for M2/M3)
-    module_scores_weighted = {}
+    # --- Calculate Module 5 Raw Score using the specific helper function ---
+    m5_answers = all_answers.get('5', {}) # Get M5 specific answers from session
+    # Ensure detailed answers for M5 are also collected if not done above
+    if '5' not in all_detailed_answers and '5' in all_answers:
+         all_detailed_answers['5'] = {
+             k: v for k, v in all_answers['5'].items() if k not in ['notes', 'visited']
+         }
+    # Calculate the specific M5 raw score
+    raw_score_m5 = calculate_module5_raw_score(m5_answers)
+    module_scores_raw['5'] = raw_score_m5 # Add M5 raw score to the dictionary
 
-    # Loop through the calculated RAW scores
+    # --- Map Raw Scores to Weighted Scores ---
+    module_scores_weighted = {} # Initialize dictionary for weighted scores
+
+    # Loop through ALL calculated RAW scores (M1-6)
     for module_id_str, raw_score in module_scores_raw.items():
         try:
             module_id = int(module_id_str)
@@ -433,32 +537,42 @@ def calculate():
             module_scores_weighted[module_id_str] = 0.0
             continue
 
-        weighted_score = 0.0 # Default
+        weighted_score = 0.0 # Default weighted score
 
-        if module_id in [1, 4, 6]: # Modules 1, 4, 6
+        if module_id in [1, 4, 6]: # Modules 1, 4, 6 (Use standard mapping)
             if module_id in weighted_score_mapping_tables:
                 mapping_table_to_use = weighted_score_mapping_tables[module_id]
+                # Use the standard mapping function
                 weighted_score = map_raw_to_weighted_score(mapping_table_to_use, raw_score)
 
-        elif module_id == 5: # Module 5 (with capping)
-            if module_id in weighted_score_mapping_tables:
-                mapping_table_to_use = weighted_score_mapping_tables[module_id]
-                raw_score_for_mapping = min(raw_score, 15) # Cap raw score at 15
-                weighted_score = map_raw_to_weighted_score(mapping_table_to_use, raw_score_for_mapping)
+        elif module_id == 5: # Module 5 (Use NEW direct mapping based on calculated raw_score_m5)
+            # Apply the specific M5 final mapping from the text
+            # Note: 'raw_score' here IS the correctly calculated raw_score_m5
+            if raw_score == 1:
+                weighted_score = 5.0
+            elif 2 <= raw_score <= 3:
+                weighted_score = 10.0
+            elif 4 <= raw_score <= 5:
+                weighted_score = 15.0
+            elif 6 <= raw_score <= 15: # Max raw seems to be 15
+                weighted_score = 20.0
+            # else: weighted_score remains 0.0 for raw_score == 0
 
         elif module_id in [2, 3]: # Modules 2 and 3 (placeholder)
-            weighted_score = 0.0 # Actual score calculated after loop
+            weighted_score = 0.0 # Actual combined score calculated after loop
 
         else: # Unexpected module ID
             weighted_score = 0.0
 
+        # Store the calculated weighted score (or placeholder for M2/M3)
         module_scores_weighted[module_id_str] = weighted_score
 
-    # --- CORRECTED: Calculate Final Total Score ---
+    # --- Calculate Final Total Score ---
     # 1. Calculate combined M2/M3 weighted score
     raw_m2 = module_scores_raw.get('2', 0.0)
     raw_m3 = module_scores_raw.get('3', 0.0)
     max_raw_m2_m3 = max(raw_m2, raw_m3)
+    # Use the M2/M3 combined mapping table and the standard mapping function
     weighted_m2_m3 = map_raw_to_weighted_score(weighted_score_mapping_m2_m3, max_raw_m2_m3)
 
     # 2. Determine which raw score contributed to M2/M3 max (for info)
@@ -468,21 +582,19 @@ def calculate():
     elif raw_m3 > raw_m2:
         which_module_contributed_m2_m3 = 3
     elif raw_m2 > 0: # Equal and non-zero
-        which_module_contributed_m2_m3 = '2 & 3'
+        which_module_contributed_m2_m3 = '2 & 3' # Or just 2 or 3
 
     # 3. Sum final scores
     final_total_score = (
         module_scores_weighted.get('1', 0.0) +
         weighted_m2_m3 +  # Use the correctly calculated combined score
         module_scores_weighted.get('4', 0.0) +
-        module_scores_weighted.get('5', 0.0) + # Uses score derived from capped raw score
+        module_scores_weighted.get('5', 0.0) + # Uses the NEW correctly calculated M5 weighted score
         module_scores_weighted.get('6', 0.0)
     )
-    # --- End Corrected Final Score Calculation ---
-
+    # --- End Final Score Calculation ---
 
     # --- Determine Pflegegrad ---
-    # (This part remains unchanged)
     pflegegrad = 0
     # Ensure thresholds are sorted correctly if not already guaranteed
     sorted_thresholds = sorted(pflegegrad_thresholds.items(), key=lambda item: item[1]['min_points'])
@@ -495,7 +607,6 @@ def calculate():
             break # Exit loop early
 
     # --- Aggregate Notes ---
-    # (This part remains unchanged)
     aggregated_notes = {
         mid: data.get('notes', '')
         for mid, data in all_answers.items()
@@ -503,44 +614,40 @@ def calculate():
     }
 
     # --- Get Benefits Data ---
-    # (This part remains unchanged - assuming pflegegrad_benefits is defined)
     from datetime import date
     today = date.today()
+    # Determine period based on date - adjust cutoff as needed
     current_period_key = "period_2" if today >= date(today.year, 7, 1) else "period_1"
+    # Fallback if period key doesn't exist for some reason
     benefits_for_pg = pflegegrad_benefits.get(pflegegrad, {})
     benefits = benefits_for_pg.get(current_period_key)
-    if not benefits:
+    if not benefits: # If current period missing, try the other one
         fallback_period = "period_1" if current_period_key == "period_2" else "period_2"
         benefits = benefits_for_pg.get(fallback_period, {})
 
-
     # --- Prepare results for template ---
-    # (Structure remains unchanged, but values are now correct)
     results = {
         'final_total_score': round(final_total_score, 2),
         'pflegegrad': pflegegrad,
-        'module_scores_raw': module_scores_raw,
-        # Note: module_scores_weighted contains M1, M4, M5, M6 weighted scores
-        # and 0.0 placeholders for M2, M3. The template needs to be aware of this
-        # if displaying weighted scores per module. Consider adding weighted_m2_m3 separately if needed.
-        'module_scores_weighted': module_scores_weighted,
-        'weighted_m2_m3': round(weighted_m2_m3, 2), # Optionally pass the combined M2/M3 score
+        'module_scores_raw': module_scores_raw, # Contains CORRECT M5 raw score now
+        'module_scores_weighted': module_scores_weighted, # Contains CORRECT M5 weighted score now & 0.0 for M2/M3
+        'weighted_m2_m3': round(weighted_m2_m3, 2), # Pass the combined M2/M3 score explicitly
         'which_module_contributed_m2_m3': which_module_contributed_m2_m3,
-        'answers': all_detailed_answers,
-        'notes': aggregated_notes,
-        'benefits': benefits
+        'answers': all_detailed_answers, # Pass detailed answers for display/PDF
+        'notes': aggregated_notes,       # Pass aggregated notes
+        'benefits': benefits             # Pass benefits data
     }
 
-    session['results'] = results # Keep storing in session
+    session['results'] = results # Keep storing in session if needed elsewhere
 
+    # Pass necessary variables to the template
     return render_template(
         'result.html',
         results=results,
-        all_modules=all_modules,
-        pflegegrad_thresholds=pflegegrad_thresholds
+        all_modules=all_modules, # Pass module definitions if needed by template
+        pflegegrad_thresholds=pflegegrad_thresholds # Pass thresholds if needed by template
         # Add TOTAL_MODULES=TOTAL_MODULES if needed
     )
-
 # Ensure pflegegrad_thresholds is defined or imported correctly before this route
 # pflegegrad_thresholds = { ... }
 
