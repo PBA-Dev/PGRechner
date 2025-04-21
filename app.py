@@ -26,98 +26,44 @@ all_modules = {
 }
 TOTAL_MODULES = len(all_modules)
 
+# Corrected mapping tables based on NBA-Punkts.rtf
+# Note: M2 and M3 are handled separately in the calculate function
 weighted_score_mapping_tables = {
-    # Module 1: Mobilität (Gewichtung: 10%)
-    # Rohpunkte: 0 -> 0; 1-2 -> 2.5; 3-4 -> 5.0; 5-6 -> 7.5; 7-15 -> 10.0
-    1: [
-        (0, 0.0),
-        (1, 2.5),
-        (3, 5.0),
-        (5, 7.5),
-        (7, 10.0)
-    ],
-
-    # Module 4: Selbstversorgung (Gewichtung: 40%)
-    # Rohpunkte: 0-2 -> 0; 3-7 -> 10.0; 8-18 -> 20.0; 19-36 -> 30.0; 37-54 -> 40.0
-    4: [
-        (0, 0.0),
-        (3, 10.0),
-        (8, 20.0),
-        (19, 30.0),
-        (37, 40.0)
-    ],
-
-    # Module 5: Bewältigung von krankheits- oder therapiebedingten Anforderungen und Belastungen (Gewichtung: 20%)
-    # Rohpunkte: 0 -> 0; 1 -> 5.0; 2-3 -> 10.0; 4-5 -> 15.0; 6-15 -> 20.0
-    # IMPORTANT: The raw score input to this mapping MUST be capped at 15 beforehand.
-    5: [
-        (0, 0.0),
-        (1, 5.0),
-        (2, 10.0),
-        (4, 15.0),
-        (6, 20.0) # Note: Raw scores > 15 should be treated as 15 before mapping.
-                 # The mapping logic handles this implicitly if the input is capped.
-                 # A raw score of 6 or more maps to 20.
-    ],
-
-    # Module 6: Gestaltung des Alltagslebens und sozialer Kontakte (Gewichtung: 15%)
-    # Rohpunkte: 0 -> 0; 1-3 -> 3.75; 4-6 -> 7.5; 7-11 -> 11.25; 12-18 -> 15.0
-    6: [
-        (0, 0.0),
-        (1, 3.75),
-        (4, 7.5),
-        (7, 11.25),
-        (12, 15.0)
-    ]
+    # Module 1: Mobilität (10%)
+    1: [(0, 0.0), (2, 2.5), (4, 5.0), (6, 7.5), (10, 10.0)],
+    # Module 4: Selbstversorgung (40%)
+    4: [(0, 0.0), (3, 10.0), (8, 20.0), (19, 30.0), (37, 40.0)],
+    # Module 5: Umgang mit krankheits-/therapiebedingten Anforderungen (20%)
+    # Note: The RTF document seems to have slightly different ranges than the original doc.
+    # Using RTF ranges: 0=0, 1=5, 2-3=10, 4-5=15, 6-15=20
+    5: [(0, 0.0), (1, 5.0), (2, 10.0), (4, 15.0), (6, 20.0)],
+    # Module 6: Gestaltung des Alltagslebens und sozialer Kontakte (15%)
+    6: [(0, 0.0), (1, 3.75), (4, 7.5), (7, 11.25), (12, 15.0)]
 }
 
-# Special mapping table for the combined Modules 2 & 3 score (Gewichtung: 15%)
-# Input is the MAXIMUM raw score from Module 2 or Module 3.
-# Rohpunkte (Max(M2, M3)): 0-1 -> 0; 2-5 -> 3.75; 6-10 -> 7.5; 11-16 -> 11.25; 17+ -> 15.0
+# Special mapping table for the combined Modules 2 & 3 score (15%)
+# Input is the MAX(raw_score_m2, raw_score_m3)
 weighted_score_mapping_m2_m3 = [
-    (0, 0.0),
-    (2, 3.75),
-    (6, 7.5),
-    (11, 11.25),
-    (17, 15.0)
+    (0, 0.0), (2, 3.75), (6, 7.5), (11, 11.25), (17, 15.0)
 ]
 
-# --- Function to Map Raw Score to Weighted Score ---
-
 def map_raw_to_weighted_score(mapping_table, raw_score):
-    """
-    Maps a raw score to its corresponding weighted score using a given mapping table.
-
-    The mapping tables define thresholds. The function finds the highest threshold
-    that the raw_score meets or exceeds and returns the associated weighted score.
-
-    Args:
-        mapping_table (list): A list of tuples, where each tuple is
-                              (raw_score_threshold, weighted_score).
-                              The list MUST be sorted by raw_score_threshold ascending.
-        raw_score (float or int): The raw score to map.
-
-    Returns:
-        float: The calculated weighted score. Returns 0.0 if the input
-               raw_score is invalid or cannot be converted to a float.
-    """
+    """Maps raw score to weighted score using a specific mapping table."""
     weighted_score = 0.0
     try:
         # Ensure raw_score is a number, default to 0 if not
         raw_score = float(raw_score)
     except (ValueError, TypeError):
-         # Consider logging this issue if it happens frequently
-         # print(f"Warning: Invalid raw_score type for weighted score mapping: {raw_score}")
+         # Log this potential issue
+         current_app.logger.warning(f"Invalid raw_score type for weighted score mapping: {raw_score}")
          raw_score = 0.0
 
     # Iterate through the table (sorted by raw score threshold)
-    # Find the highest weighted score where raw_score >= table_raw_score
     for table_raw, table_weighted in mapping_table:
         if raw_score >= table_raw:
             weighted_score = table_weighted
         else:
-            # Since the table is sorted by raw score threshold,
-            # we've gone past the applicable range and can stop early.
+            # Since the table is sorted, we can stop early
             break
     return float(weighted_score)
 
@@ -199,45 +145,90 @@ def module_page(module_id):
     current_answers = session.get('module_answers', {}).get(module_id_str, {})
 
     # --- Calculate Estimated Score for Progress Bar ---
-    # This logic needs to be here for GET requests too
+# --- Calculate Estimated Score for Progress Bar ---
     current_estimated_score = 0.0
-    temp_module_scores_raw = {}
-    temp_module_scores_weighted = {}
-    temp_which_module_contributed_m2_m3 = None
+    temp_module_scores_raw = {}      # Store raw scores per module
+    temp_module_scores_weighted = {} # Store weighted scores (for M1, M4, M5, M6 directly)
 
-    # Recalculate based on session data up to the *previous* module
-    # Or include current module if answers exist? Let's recalculate all answered.
+    # Recalculate based on all answered modules in the session
     all_session_answers = session.get('module_answers', {})
     for mid_str, answers in all_session_answers.items():
-        mid = int(mid_str)
-        if mid not in all_modules: continue
+        try:
+            mid = int(mid_str)
+            if mid not in all_modules: continue # Skip if module ID isn't valid
+        except ValueError:
+            continue # Skip if module ID isn't an integer
 
+        # 1. Calculate Raw Score for the current module
         raw_score = 0.0
         for q_key, answer_data in answers.items():
-             if q_key not in ['notes', 'visited'] and isinstance(answer_data, dict):
-                 raw_score += answer_data.get('score', 0)
-        temp_module_scores_raw[mid_str] = raw_score
-        temp_module_scores_weighted[mid_str] = map_raw_to_weighted_score(mid, raw_score)
+            # Ensure answer_data is a dict and has a 'score' key
+            if isinstance(answer_data, dict) and 'score' in answer_data:
+                try:
+                    raw_score += float(answer_data.get('score', 0))
+                except (ValueError, TypeError):
+                    pass # Ignore if score is not a number
 
-    # Calculate estimated total based on weighted scores found
+        temp_module_scores_raw[mid_str] = raw_score # Store the calculated raw score
+
+        # 2. Determine Correct Mapping Table and Calculate Weighted Score (for display/temp storage)
+        mapping_table_to_use = None
+        weighted_score = 0.0
+
+        # --- MODIFICATION START ---
+        if mid in weighted_score_mapping_tables: # Handles M1, M4, M5, M6
+            mapping_table_to_use = weighted_score_mapping_tables[mid]
+
+            # *** IMPORTANT: Cap Module 5 raw score BEFORE mapping ***
+            if mid == 5:
+                raw_score_for_mapping = min(raw_score, 15) # Use capped score for M5 mapping
+            else:
+                raw_score_for_mapping = raw_score
+
+            if mapping_table_to_use:
+                weighted_score = map_raw_to_weighted_score(mapping_table_to_use, raw_score_for_mapping)
+
+        elif mid == 2 or mid == 3:
+            # For M2/M3, we store the raw score. The weighted score is calculated
+            # *after* the loop using the max raw score and the combined table.
+            # We can store 0 temporarily in the weighted dict for these.
+            weighted_score = 0.0 # Placeholder - will be calculated correctly below
+
+        else:
+            # Should not happen for modules 1-6, but good practice
+            weighted_score = 0.0
+
+        temp_module_scores_weighted[mid_str] = weighted_score # Store the calculated weighted score (or placeholder for M2/M3)
+        # --- MODIFICATION END ---
+
+
+    # --- Corrected Estimated Total Calculation (After the loop) ---
+    # Get weighted scores for modules calculated directly
     m1_s = temp_module_scores_weighted.get('1', 0.0)
-    m2_s = temp_module_scores_weighted.get('2', 0.0)
-    m3_s = temp_module_scores_weighted.get('3', 0.0)
     m4_s = temp_module_scores_weighted.get('4', 0.0)
-    m5_s = temp_module_scores_weighted.get('5', 0.0)
+    m5_s = temp_module_scores_weighted.get('5', 0.0) # This used the capped raw score
     m6_s = temp_module_scores_weighted.get('6', 0.0)
 
-    current_estimated_score += m1_s
-    if m2_s >= m3_s:
-        current_estimated_score += m2_s
+    # Calculate combined M2/M3 score correctly
+    raw_m2 = temp_module_scores_raw.get('2', 0.0)
+    raw_m3 = temp_module_scores_raw.get('3', 0.0)
+    max_raw_m2_m3 = max(raw_m2, raw_m3)
+
+    # Use the correct combined mapping table and the MAX raw score
+    m2_m3_s = map_raw_to_weighted_score(weighted_score_mapping_m2_m3, max_raw_m2_m3)
+
+    # Determine which module contributed more to the MAX raw score (for info/display if needed)
+    temp_which_module_contributed_m2_m3 = None
+    if raw_m2 > raw_m3:
         temp_which_module_contributed_m2_m3 = 2
-    else:
-        current_estimated_score += m3_s
+    elif raw_m3 > raw_m2:
         temp_which_module_contributed_m2_m3 = 3
-    current_estimated_score += m4_s
-    current_estimated_score += m5_s
-    current_estimated_score += m6_s
-    # --- End Estimated Score Calculation ---
+    elif raw_m2 > 0: # If they are equal and non-zero
+        temp_which_module_contributed_m2_m3 = '2 & 3' # Or just 2 or 3
+
+    # Sum the final weighted scores
+    current_estimated_score = m1_s + m2_m3_s + m4_s + m5_s + m6_s
+    # --- End Corrected Estimated Score Calculation ---
 
     # Define max_score for the progress bar (adjust if needed)
     max_score = 100
@@ -402,71 +393,109 @@ def calculate():
 
     all_answers = session.get('module_answers', {})
     module_scores_raw = {}
-    module_scores_weighted = {}
+    # module_scores_weighted = {} # We will create this in the corrected section below
     all_detailed_answers = {} # To store text and score for results page/PDF
 
     # --- Calculate Raw Scores and Collect Detailed Answers ---
+    # (This part remains unchanged)
     for module_id_str, answers in all_answers.items():
-        module_id = int(module_id_str)
-        if module_id not in all_modules: continue
+        try: # Add try-except for robustness
+            module_id = int(module_id_str)
+            if module_id not in all_modules: continue
+        except ValueError:
+            continue # Skip if key is not an integer
 
         module_data = all_modules[module_id]
         current_module_raw_score = 0.0
         current_detailed_answers = {}
 
-        # Iterate through the stored answers for the module
-        # Exclude 'notes' and 'visited' keys from score calculation
         for q_key, answer_data in answers.items():
             if q_key not in ['notes', 'visited'] and isinstance(answer_data, dict):
-                current_module_raw_score += answer_data.get('score', 0)
-                current_detailed_answers[q_key] = answer_data # Store details (question text, answer text, score)
+                try: # Add try-except for robustness
+                    current_module_raw_score += float(answer_data.get('score', 0))
+                except (ValueError, TypeError):
+                    pass # Ignore non-numeric scores
+                # Store details regardless of score validity for display
+                current_detailed_answers[q_key] = answer_data
 
         module_scores_raw[module_id_str] = current_module_raw_score
         all_detailed_answers[module_id_str] = current_detailed_answers
 
+    # --- CORRECTED: Map Raw Scores to Weighted Scores ---
+    # Initialize dictionary for weighted scores (M1, M4, M5, M6 + placeholders for M2/M3)
+    module_scores_weighted = {}
 
-    # --- Map Raw Scores to Weighted Scores (using mapping function) ---
-    # (Keep existing logic)
+    # Loop through the calculated RAW scores
     for module_id_str, raw_score in module_scores_raw.items():
-         module_id = int(module_id_str)
-         if module_id in all_modules:
-             module_scores_weighted[module_id_str] = map_raw_to_weighted_score(module_id, raw_score)
-         else:
-             module_scores_weighted[module_id_str] = 0.0
+        try:
+            module_id = int(module_id_str)
+        except ValueError:
+            module_scores_weighted[module_id_str] = 0.0
+            continue
 
-    # --- Calculate Final Total Score ---
-    # (Keep existing logic)
-    final_total_score = 0
+        weighted_score = 0.0 # Default
+
+        if module_id in [1, 4, 6]: # Modules 1, 4, 6
+            if module_id in weighted_score_mapping_tables:
+                mapping_table_to_use = weighted_score_mapping_tables[module_id]
+                weighted_score = map_raw_to_weighted_score(mapping_table_to_use, raw_score)
+
+        elif module_id == 5: # Module 5 (with capping)
+            if module_id in weighted_score_mapping_tables:
+                mapping_table_to_use = weighted_score_mapping_tables[module_id]
+                raw_score_for_mapping = min(raw_score, 15) # Cap raw score at 15
+                weighted_score = map_raw_to_weighted_score(mapping_table_to_use, raw_score_for_mapping)
+
+        elif module_id in [2, 3]: # Modules 2 and 3 (placeholder)
+            weighted_score = 0.0 # Actual score calculated after loop
+
+        else: # Unexpected module ID
+            weighted_score = 0.0
+
+        module_scores_weighted[module_id_str] = weighted_score
+
+    # --- CORRECTED: Calculate Final Total Score ---
+    # 1. Calculate combined M2/M3 weighted score
+    raw_m2 = module_scores_raw.get('2', 0.0)
+    raw_m3 = module_scores_raw.get('3', 0.0)
+    max_raw_m2_m3 = max(raw_m2, raw_m3)
+    weighted_m2_m3 = map_raw_to_weighted_score(weighted_score_mapping_m2_m3, max_raw_m2_m3)
+
+    # 2. Determine which raw score contributed to M2/M3 max (for info)
     which_module_contributed_m2_m3 = None
-    m1_score = module_scores_weighted.get('1', 0.0)
-    m2_score = module_scores_weighted.get('2', 0.0)
-    m3_score = module_scores_weighted.get('3', 0.0)
-    m4_score = module_scores_weighted.get('4', 0.0)
-    m5_score = module_scores_weighted.get('5', 0.0) # Now uses calculated M5 score
-    m6_score = module_scores_weighted.get('6', 0.0)
-
-    final_total_score += m1_score
-    if m2_score >= m3_score:
-        final_total_score += m2_score
+    if raw_m2 > raw_m3:
         which_module_contributed_m2_m3 = 2
-    else:
-        final_total_score += m3_score
+    elif raw_m3 > raw_m2:
         which_module_contributed_m2_m3 = 3
-    final_total_score += m4_score
-    final_total_score += m5_score
-    final_total_score += m6_score
+    elif raw_m2 > 0: # Equal and non-zero
+        which_module_contributed_m2_m3 = '2 & 3'
+
+    # 3. Sum final scores
+    final_total_score = (
+        module_scores_weighted.get('1', 0.0) +
+        weighted_m2_m3 +  # Use the correctly calculated combined score
+        module_scores_weighted.get('4', 0.0) +
+        module_scores_weighted.get('5', 0.0) + # Uses score derived from capped raw score
+        module_scores_weighted.get('6', 0.0)
+    )
+    # --- End Corrected Final Score Calculation ---
+
 
     # --- Determine Pflegegrad ---
-    # (Keep existing logic)
+    # (This part remains unchanged)
     pflegegrad = 0
-    for grad, threshold in sorted(pflegegrad_thresholds.items(), key=lambda item: item[1]['min_points']):
-        if final_total_score >= threshold['min_points']:
+    # Ensure thresholds are sorted correctly if not already guaranteed
+    sorted_thresholds = sorted(pflegegrad_thresholds.items(), key=lambda item: item[1]['min_points'])
+    for grad, threshold in sorted_thresholds:
+        # Use round() for comparison to avoid floating point issues, or use a small epsilon
+        if round(final_total_score, 2) >= threshold['min_points']:
             pflegegrad = grad
         else:
-            break
+            # Since sorted, we can stop once a threshold is not met
+            break # Exit loop early
 
     # --- Aggregate Notes ---
-    # (Keep existing logic)
+    # (This part remains unchanged)
     aggregated_notes = {
         mid: data.get('notes', '')
         for mid, data in all_answers.items()
@@ -474,43 +503,59 @@ def calculate():
     }
 
     # --- Get Benefits Data ---
-    # (Keep existing logic - maybe add date check)
+    # (This part remains unchanged - assuming pflegegrad_benefits is defined)
     from datetime import date
     today = date.today()
-    # Determine period based on date - adjust cutoff as needed
     current_period_key = "period_2" if today >= date(today.year, 7, 1) else "period_1"
-    # Fallback if period key doesn't exist for some reason
     benefits_for_pg = pflegegrad_benefits.get(pflegegrad, {})
     benefits = benefits_for_pg.get(current_period_key)
-    if not benefits: # If current period missing, try the other one
+    if not benefits:
         fallback_period = "period_1" if current_period_key == "period_2" else "period_2"
         benefits = benefits_for_pg.get(fallback_period, {})
 
 
     # --- Prepare results for template ---
-    # (Keep existing structure)
+    # (Structure remains unchanged, but values are now correct)
     results = {
         'final_total_score': round(final_total_score, 2),
         'pflegegrad': pflegegrad,
         'module_scores_raw': module_scores_raw,
+        # Note: module_scores_weighted contains M1, M4, M5, M6 weighted scores
+        # and 0.0 placeholders for M2, M3. The template needs to be aware of this
+        # if displaying weighted scores per module. Consider adding weighted_m2_m3 separately if needed.
         'module_scores_weighted': module_scores_weighted,
+        'weighted_m2_m3': round(weighted_m2_m3, 2), # Optionally pass the combined M2/M3 score
         'which_module_contributed_m2_m3': which_module_contributed_m2_m3,
-        'answers': all_detailed_answers, # Pass detailed answers for display/PDF
-        'notes': aggregated_notes,       # Pass aggregated notes
-        'benefits': benefits             # Pass benefits data
+        'answers': all_detailed_answers,
+        'notes': aggregated_notes,
+        'benefits': benefits
     }
 
-    session['results'] = results # Keep storing in session if needed elsewhere
+    session['results'] = results # Keep storing in session
 
-    # Pass necessary variables to the template
     return render_template(
         'result.html',
         results=results,
         all_modules=all_modules,
         pflegegrad_thresholds=pflegegrad_thresholds
-        # Add TOTAL_MODULES if used in result.html
-        # TOTAL_MODULES=TOTAL_MODULES
+        # Add TOTAL_MODULES=TOTAL_MODULES if needed
     )
+
+# Ensure pflegegrad_thresholds is defined or imported correctly before this route
+# pflegegrad_thresholds = { ... }
+
+pflegegrad_thresholds = {
+    1: {'min_points': 12.5, 'max_points': 26.9},
+    2: {'min_points': 27, 'max_points': 47.4},
+    3: {'min_points': 47.5, 'max_points': 69.9},
+    4: {'min_points': 70, 'max_points': 89.9},
+    5: {'min_points': 90, 'max_points': 100}
+}
+# ... (generate_pdf route) ...
+
+
+# d:\Users\SSH\OneDrive\1_-_SunState_Health,_LLC\.-Optimum_Pflege\ProgFold\PGRechner\PGRechner\app.py
+# ... (imports and other code remain the same) ...
 
 # --- PDF Generation Route ---
 # d:\Users\SSH\OneDrive\1_-_SunState_Health,_LLC\.-Optimum_Pflege\ProgFold\PGRechner\PGRechner\app.py
