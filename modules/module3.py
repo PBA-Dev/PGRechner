@@ -4,6 +4,7 @@ Weight: 15% (Note: Actual NBA weighting combines M2 & M3, then takes the higher 
 """
 
 module3 = {
+    'id': 3,
     "name": "Modul 3: Verhaltensweisen und psychische Problemlagen",
     "weight": 0.15, # Placeholder weight, actual calculation might differ based on NBA rules
     "questions": [

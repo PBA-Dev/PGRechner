@@ -108,11 +108,29 @@
                                 <span class="ms-auto me-3">
                                     <span class="badge bg-secondary">Roh: {{ current_module_scores.get('raw', 0.0) | round(1) }}</span>
                                 </span>
-                                <span>
-                                    {# Only show weighted if it's not M2 or M3 (use combined score later if needed) #}
-                                    {% if module_num_str not in ['2', '3'] %}
-                                    <span class="badge bg-info">Gewichtet: {{ current_module_scores.get('weighted', 0.0) | round(2) }}</span>
+                                <span> {# This span might be redundant depending on layout, adjust if needed #}
+                                    {# --- START: New Logic for Weighted Score Badge --- #}
+                                
+                                    {# Get potential weighted scores for M2 and M3 once for comparison #}
+                                    {% set m2_potential_weighted = results.module_scores['2'].get('weighted', 0.0) %}
+                                    {% set m3_potential_weighted = results.module_scores['3'].get('weighted', 0.0) %}
+                                
+                                    {# Decide which badge to show based on module ID #}
+                                    {% if module_num_str == '2' %}
+                                        {# Show for M2 if its potential score was chosen (>= M3's) #}
+                                        {% if m2_potential_weighted >= m3_potential_weighted %}
+                                            <span class="badge bg-info">Gewichtet: {{ results.combined_m2_m3_weighted | round(2) }} *</span>
+                                        {% endif %}
+                                    {% elif module_num_str == '3' %}
+                                        {# Show for M3 if its potential score was chosen (> M2's) #}
+                                        {% if m3_potential_weighted > m2_potential_weighted %}
+                                            <span class="badge bg-info">Gewichtet: {{ results.combined_m2_m3_weighted | round(2) }} *</span>
+                                        {% endif %}
+                                    {% else %}
+                                        {# Show standard weighted score for modules other than 2 & 3 #}
+                                        <span class="badge bg-info">Gewichtet: {{ current_module_scores.get('weighted', 0.0) | round(2) }}</span>
                                     {% endif %}
+                                    {# --- END: New Logic for Weighted Score Badge --- #}
                                 </span>
                             </button>
                         </h2>
@@ -192,7 +210,13 @@
              <p class="text-muted p-3">Keine detaillierten Antwortdaten verfügbar.</p> {# Fallback if answers is empty or not a dict #}
         {% endif %} {# End check answers is defined #}
     </div> <!-- End accordion -->
+
+    <p class="mt-3 text-center"> {# Added text-center for potential styling #}
+        <small>* Bei Modul 2 (Kognitive Fähigkeiten) und Modul 3 (Verhaltensweisen) fließt nur der höhere der beiden ermittelten gewichteten Punktwerte in die Gesamtberechnung des Pflegegrades ein.</small>
+    </p>
 </div> <!-- End card -->
+
+        
 
         <!-- Actions Section -->
         <div class="actions text-center mt-4 mb-5">

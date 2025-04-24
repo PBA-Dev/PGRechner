@@ -4,6 +4,7 @@ Weight: 15% (Note: Actual NBA weighting combines M2 & M3, then takes the higher 
 """
 
 module2 = {
+    'id': 2,
     "name": "Modul 2: Kognitive und kommunikative Fähigkeiten",
     "weight": 0.15, # Placeholder weight, actual calculation might differ based on NBA rules
     "questions": [

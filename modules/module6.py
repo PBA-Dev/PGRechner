@@ -4,6 +4,7 @@ Weight: 15% (0.15)
 """
 
 module6 = {
+    'id': 6,
     "name": "Modul 6: Gestaltung des Alltagslebens und sozialer Kontakte",
     "weight": 0.15,
     "questions": [
