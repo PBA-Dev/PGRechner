@@ -29,39 +29,20 @@
             {% endif %}
         {% endwith %}
 
-        {# --- Progress Bar Section (Keep as is) --- #}
-        {% if current_estimated_score is defined and max_score is defined and pflegegrad_thresholds is defined %}
-        <div class="progress-section mb-4">
-            <h4>Geschätzter Punktestand*</h4>
-            <div class="progress-container">
-                <div class="progress-bar-markers">
-                    {% for grade, bounds in pflegegrad_thresholds.items() | sort %}
-                        {% if grade > 0 %}
-                            {% set min_points_for_grade = bounds.get('min_points', 0) %}
-                            {% set marker_pos = (min_points_for_grade / max_score * 100) | round(1) %}
-                            {% if marker_pos > 98 %}{% set marker_pos = 98 %}{% endif %}
-                            {% if marker_pos < 2 %}{% set marker_pos = 2 %}{% endif %}
-                            <span class="marker" style="left: {{ marker_pos }}%;" data-grade="PG{{ grade }}">
-                                PG{{ grade }}*
-                                <span class="marker-value">{{ min_points_for_grade }} Pkt.*</span>
-                            </span>
-                        {% endif %}
-                    {% endfor %}
-                </div>
-                <div class="progress" style="height: 25px;"> {# Use Bootstrap progress component #}
-                    {% set current_percentage = (current_estimated_score / max_score * 100) | round(1) %}
-                    {% if current_percentage > 100 %}{% set current_percentage = 100 %}{% endif %}
-                    <div class="progress-bar" role="progressbar" style="width: {{ current_percentage }}%;" aria-valuenow="{{ current_percentage }}" aria-valuemin="0" aria-valuemax="100">
-                         <span class="current-score-label">{{ current_estimated_score | round(1) }} Pkt.*</span>
-                    </div>
-                </div>
-            </div>
-            <p class="progress-note small text-muted mt-2">*Dies ist eine Schätzung basierend auf den bisherigen Eingaben und ersetzt nicht die offizielle Begutachtung.</p>
-        </div>
-        <hr class="progress-separator mb-4">
-        {% endif %}
-        {# --- End Progress Bar Section --- #}
-
+        {# --- Simple Progress Bar Section --- #}
+{% if progress_percent is defined %} {# Check if the variable is passed #}
+<div class="progress-section mb-4">
+    <h4>Fortschritt</h4> {# Simple title #}
+    <div class="progress" role="progressbar" aria-label="Fortschritt der Module" aria-valuenow="{{ progress_percent }}" aria-valuemin="0" aria-valuemax="100" style="height: 25px;">
+      {# Display the bar based on module completion percentage #}
+      <div class="progress-bar" style="width: {{ progress_percent }}%">
+          {{ progress_percent }}% abgeschlossen
+      </div>
+    </div>
+</div>
+<hr class="progress-separator mb-4">
+{% endif %}
+{# --- End Simple Progress Bar Section --- #}
         <h1>{{ module.name }} (Modul {{ module_id }} von {{ TOTAL_MODULES }})</h1> {# Use module_id and TOTAL_MODULES #}
 
         <form method="post" action="{{ url_for('module_page_submit', module_id=module_id) }}"> {# Use module_id #}
@@ -118,36 +99,40 @@
                             {% elif question.type == 'standard' %}
                                  {# --- Standard Radio Buttons (like other modules) --- #}
                                  {% set current_answer_data = session.get('module_answers', {}).get(module.id | string, {}).get(question_key, {}) %}
-                                 {% for opt_idx, option in question.options %}
-                                    <div class="form-check">
-                                        <input class="form-check-input" type="radio"
-                                               name="answer_{{ module_id }}_{{ question_key }}" {# Use question_key #}
-                                               id="option_{{ module_id }}_{{ question_key }}_{{ opt_idx }}"
-                                               value="{{ opt_idx }}" {# *** SEND INDEX *** #}
-                                               {% if current_answer_data and current_answer_data.get('option_index') == opt_idx %}checked{% endif %} {# *** CHECK BY INDEX *** #}
-                                               required>
-                                        <label class="form-check-label" for="option_{{ module.id }}_{{ question_key }}_{{ opt_idx }}">
-                                            {{ option.text }} {% if option.score is defined %}({{ option.score }} Pkt.){% endif %} {# Show score if defined #}
-                                        </label>
-                                    </div>
-                                 {% endfor %}
-
+                                 {% if question.options %}
+                                     {% for option in question.options %}
+                                         {% set opt_idx = loop.index0 %}
+                                         <div class="form-check">
+                                             <input class="form-check-input" type="radio"
+                                                    name="{{ question.id }}" {# Use question.id #}
+                                                    id="option_{{ question.id }}_{{ opt_idx }}" {# Use question.id #}
+                                                    value="{{ opt_idx }}"
+                                                    {% if current_answer_data and current_answer_data.get('option_index') == opt_idx %}checked{% endif %}
+                                                    required>
+                                             <label class="form-check-label" for="option_{{ question.id }}_{{ opt_idx }}"> {# Use question.id #}
+                                                 {{ option.text }} {% if option.score is defined %}({{ option.score }} Pkt.){% endif %}
+                                             </label>
+                                         </div>
+                                     {% endfor %}
+                                 {% endif %}        
                             {% else %}
-                                {# Fallback for potentially other question types or standard radio buttons if type not specified #}
                                 {% set current_answer_data = session.get('module_answers', {}).get(module.id | string, {}).get(question_key, {}) %}
-                                 {% for opt_idx, option in question.options %}
+                                {% if question.options %}
+                                {% for option in question.options %}
+                                    {% set opt_idx = loop.index0 %}
                                     <div class="form-check">
                                         <input class="form-check-input" type="radio"
-                                               name="answer_{{ module.id }}_{{ question_key }}" {# Use question_key #}
-                                               id="option_{{ module.id }}_{{ question_key }}_{{ opt_idx }}"
-                                               value="{{ opt_idx }}" {# *** SEND INDEX *** #}
-                                               {% if current_answer_data and current_answer_data.get('option_index') == opt_idx %}checked{% endif %} {# *** CHECK BY INDEX *** #}
-                                               required>
-                                        <label class="form-check-label" for="option_{{ module.id }}_{{ question_key }}_{{ opt_idx }}">
-                                            {{ option.text }} {% if option.score is defined %}({{ option.score }} Pkt.){% endif %} {# Show score if defined #}
+                                            name="{{ question.id }}" {# Use question.id #}
+                                            id="option_{{ question.id }}_{{ opt_idx }}" {# Use question.id #}
+                                            value="{{ opt_idx }}"
+                                            {% if current_answer_data and current_answer_data.get('option_index') == opt_idx %}checked{% endif %}
+                                            required>
+                                        <label class="form-check-label" for="option_{{ question.id }}_{{ opt_idx }}"> {# Use question.id #}
+                                            {{ option.text }} {% if option.score is defined %}({{ option.score }} Pkt.){% endif %}
                                         </label>
                                     </div>
                                  {% endfor %}
+                            {% endif %}
                             {% endif %}
                         </div> {# End question block #}
                     {% endfor %} {# End loop questions in part #}
@@ -222,13 +207,14 @@
                 {% endif %}
 
                 <button type="submit" class="btn btn-primary">
-                    {% if module_id == TOTAL_MODULES %}
-                        Ergebnisse Berechnen <i class="bi bi-calculator"></i>
+                    {% if module_id < total_modules %}
+                        {# If not the last module, show "Weiter zu Modul X+1" #}
+                        Weiter zu Modul {{ module_id + 1 }}
                     {% else %}
-                        Weiter zu Modul {{ module_id + 1 }} <i class="bi bi-arrow-right"></i>
+                        {# If it IS the last module, show different text #}
+                        Zur Auswertung {# Or "Abschließen", "Ergebnisse anzeigen", etc. #}
                     {% endif %}
                 </button>
-            </div>
             {# --- End Navigation Buttons --- #}
 
         </form>

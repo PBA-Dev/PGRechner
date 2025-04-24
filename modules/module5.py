@@ -157,19 +157,18 @@ module5 = {
             'part_id': '5.5',
             'name': 'Teil 5: Diät und Verhaltensvorschriften',
              'questions': [
-                 {
+                {
                     'id': '5.5.1',
                     'text': 'Einhaltung einer Diät und anderer krankheits- oder therapiebedingter Verhaltensvorschriften',
-                    'explanation': 'Fähigkeit, Diätpläne oder spezielle Verhaltensregeln einzuhalten.',
-                    'type': 'standard', # This seems to be a standard choice question
+                    'type': 'radio', # Or 'standard', ensure type is correct
                     'options': [
-                        {'text': 'Entfällt/Selbständig', 'score': 0}, # Combine based on doc? Needs clarification
-                        # {'text': 'Selbständig', 'score': 0}, # Or separate?
-                        {'text': 'Überwiegend selbständig', 'score': 1}, # Scores need verification
+                        {'text': 'Entfällt/Selbständig', 'score': 0},
+                        {'text': 'Überwiegend selbständig', 'score': 1},
                         {'text': 'Überwiegend unselbständig', 'score': 2},
                         {'text': 'Unselbständig', 'score': 3}
                     ]
-                 },
+                    # Any other keys like 'details' if you use them
+                },
              ]
         },
     ]

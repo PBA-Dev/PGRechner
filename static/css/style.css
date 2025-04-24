@@ -84,6 +84,17 @@ hr.progress-separator {
     border-top: 1px solid var(--medium-gray);
 }
 
+.progress-bar {
+    background-color: #28a745 !important; /* Bootstrap's success green, or choose another color */
+    color: white; /* Make text white for better contrast on dark bars */
+}
+
+.progress {
+    background-color: #e9ecef !important; /* A slightly darker grey, or choose another color */
+    /* You might also want to add a border */
+    /* border: 1px solid #ced4da; */
+}
+
 /* --- Buttons --- */
 .btn {
     display: inline-block;
