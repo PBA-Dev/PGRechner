@@ -1,4 +1,3 @@
-<!-- d:\Users\SSH\OneDrive\1_-_SunState_Health,_LLC\.-Optimum_Pflege\ProgFold\PGRechner\PGRechner\templates\result.html -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -15,10 +14,26 @@
     <!-- Add Bootstrap Icons CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <style>
-        /* Optional: Add styles if needed */
+    /* Optional: Add styles if needed */
     </style>
 </head>
 <body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('intro') }}">Pflegegradrechner</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('intro') }}">Neuer Rechner</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
     <div class="container mt-4">
         {# Display flashed messages #}
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -35,40 +50,43 @@
         <h1 class="mb-4 text-center">Ergebnis der Pflegegradberechnung</h1>
 
         <!-- Summary Section -->
-<div class="card mb-4 shadow-sm">
-    <div class="card-header bg-primary text-white">
-        <h2 class="h5 mb-0">Zusammenfassung</h2>
-    </div>
-    <div class="card-body">
-        <p class="lead">Basierend auf der Bewertung wurde folgender Pflegegrad ermittelt:</p>
-        <div class="alert alert-info text-center" role="alert">
-            <h3 class="alert-heading display-6">Pflegegrad {{ results.pflegegrad }}</h3>
-            {# Use the correct variable name from the calculation results #}
-            <p class="mb-0 fs-5">Gesamtpunktzahl: <strong>{{ results.total_weighted | round(2) }}</strong> Punkte</p>
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h2 class="h5 mb-0">Zusammenfassung</h2>
+            </div>
+            <div class="card-body">
+                {% if results %}
+                    <p class="lead">Basierend auf der Bewertung wurde folgender Pflegegrad ermittelt:</p>
+                    <div class="alert alert-info text-center" role="alert">
+                        {# Use the correct variable name from the calculation results #}
+                        <h3 class="alert-heading display-6">Pflegegrad {{ results.pflegegrad | default('N/A') }}</h3>
+                        {# Use the correct variable name from the calculation results #}
+                        <p class="mb-0 fs-5">Gesamtpunktzahl: <strong>{{ results.total_weighted_score | default(0) | round(2) }}</strong> Punkte</p>
+                    </div>
+                {% else %}
+                     <div class="alert alert-warning" role="alert">
+                        Keine Berechnungsergebnisse gefunden. Bitte <a href="{{ url_for('intro') }}" class="alert-link">starten Sie eine neue Berechnung</a>.
+                    </div>
+                {% endif %}
+            </div>
         </div>
-        {# Optional: Show which module (M2/M3) contributed #}
-        {# This key 'which_module_contributed_m2_m3' is not currently in your results dict. #}
-        {# You could remove this block or adapt it later if needed. #}
-        {# {% if results.which_module_contributed_m2_m3 %}
-            <p class="small text-muted mt-2 text-center">Höherer gewichteter Punktwert aus Modul {{ results.which_module_contributed_m2_m3 }} wurde für die Gesamtberechnung verwendet.</p>
-        {% endif %} #}
-    </div>
-</div>
 
         <!-- Benefits Section -->
         {# Check the structure passed from app.py based on benefits_data.py #}
-        {% if results.benefits and results.benefits.leistungen %}
+        {# Assuming benefits_data is loaded and passed correctly in app.py if needed #}
+        {# This section might need adjustment based on how benefits are passed #}
+        {% if results and results.pflegegrad in pflegegrad_benefits %}
+            {% set benefits = pflegegrad_benefits[results.pflegegrad] %}
             <div class="card mb-4 shadow-sm">
-                 <div class="card-header bg-light">
+                <div class="card-header bg-light">
                     <h2 class="h5 mb-0">Mögliche Leistungen bei Pflegegrad {{ results.pflegegrad }}</h2>
-                 </div>
+                </div>
                 <div class="card-body">
-                    {% if results.benefits.date_range %}
-                        <p class="text-muted small mb-3">({{ results.benefits.date_range }})</p>
+                    {% if benefits.date_range %}
+                        <p class="text-muted small mb-3">({{ benefits.date_range }})</p>
                     {% endif %}
                     <ul class="list-group list-group-flush">
-                        {# Correctly loop through the 'leistungen' list of dictionaries #}
-                        {% for item in results.benefits.leistungen %}
+                        {% for item in benefits.leistungen %}
                             <li class="list-group-item d-flex justify-content-between align-items-center">
                                 {{ item.name }}
                                 <span class="badge bg-primary rounded-pill">{{ item.value }}</span>
@@ -78,249 +96,168 @@
                     <p class="small text-muted mt-3">Diese Auflistung ist nicht vollständig und dient nur zur Orientierung. Bitte besprechen Sie die Details mit Ihrer Pflegekasse.</p>
                 </div>
             </div>
+        {% elif results %}
+             <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-light">
+                    <h2 class="h5 mb-0">Mögliche Leistungen</h2>
+                </div>
+                 <div class="card-body">
+                    <p class="text-muted">Für den ermittelten Pflegegrad {{ results.pflegegrad | default('N/A') }} sind keine spezifischen Leistungsdaten hinterlegt oder der Pflegegrad ist 0.</p>
+                 </div>
+             </div>
         {% endif %}
 
-        <<!-- Details Section (Accordion) -->
-<div class="card mb-4 shadow-sm">
-    <div class="card-header bg-light">
-        <h2 class="h5 mb-0">Detailergebnisse nach Modulen</h2>
-    </div>
-    <div class="accordion" id="resultsAccordion">
-        {# Check the CORRECT answers variable passed from the route #}
-        {% if answers is defined and answers is mapping and answers %} {# Added check if answers is not empty #}
-            {# Loop through the CORRECT answers variable #}
-            {% for module_num_str, module_answers_dict in answers.items() | sort %} {# Use _str suffix for clarity #}
-                {# Convert string key '1', '2' to integer 1, 2 #}
-                {% set module_num_int = module_num_str | int(-1) %} {# Use -1 default if conversion fails #}
 
-                {# Check if integer key exists in all_modules AND string key exists in results.module_scores #}
-                {% if module_num_int != -1 and module_num_int in all_modules and module_num_str in results.module_scores %}
-                    {% set current_module_info = all_modules[module_num_int] %} {# Get module info using integer key #}
-                    {% set current_module_scores = results.module_scores[module_num_str] %} {# Get scores using string key #}
+        <!-- Details Section (Table) -->
+        {% if results and module_weights %} {# Check if results and weights exist #}
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-light">
+                    <h2 class="h5 mb-0">Detailergebnisse nach Modulen</h2>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Modul</th>
+                                    <th>Bereich</th>
+                                    <th>Rohpunkte</th>
+                                    <th>Gewichtung</th>
+                                    <th>Gewichtete Punkte</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Module 1 -->
+                                <tr>
+                                    <td>1</td>
+                                    <td>Mobilität</td>
+                                    <td>{{ results.raw_scores.get('1', 0.0) | round(2) }}</td>
+                                    <td>{{ (module_weights.get(1, 0) * 100) | round(0) }}%</td>
+                                    <td>{{ results.weighted_scores.get('1', 0.0) | round(2) }}</td>
+                                </tr>
+                                <!-- Module 2 -->
+                                <tr>
+                                    <td>2</td>
+                                    <td>Kognitive und kommunikative Fähigkeiten</td>
+                                    <td>{{ results.raw_scores.get('2', 0.0) | round(2) }}</td>
+                                    <td rowspan="2" class="align-middle text-center">max(M2, M3) * {{ (module_weights.get(2, 0) * 100) | round(0) }}%</td>
+                                    <td rowspan="2" class="align-middle text-center">{{ results.weighted_scores.get('23', 0.0) | round(2) }}</td>
+                                </tr>
+                                <!-- Module 3 -->
+                                <tr>
+                                    <td>3</td>
+                                    <td>Verhaltensweisen und psychische Problemlagen</td>
+                                    <td>{{ results.raw_scores.get('3', 0.0) | round(2) }}</td>
+                                    <!-- Weighting and Weighted Points covered by rowspan -->
+                                </tr>
+                                <!-- Module 4 -->
+                                <tr>
+                                    <td>4</td>
+                                    <td>Selbstversorgung</td>
+                                    <td>{{ results.raw_scores.get('4', 0.0) | round(2) }}</td>
+                                    <td>{{ (module_weights.get(4, 0) * 100) | round(0) }}%</td>
+                                    <td>{{ results.weighted_scores.get('4', 0.0) | round(2) }}</td>
+                                </tr>
+                                <!-- Module 5 -->
+                                <tr>
+                                    <td>5</td>
+                                    <td>Umgang mit krankheits-/therapiebedingten Anforderungen</td>
+                                    <td>{{ results.raw_scores.get('5', 0.0) | round(2) }}</td>
+                                    <td>{{ (module_weights.get(5, 0) * 100) | round(0) }}%</td>
+                                    <td>{{ results.weighted_scores.get('5', 0.0) | round(2) }}</td>
+                                </tr>
+                                <!-- Module 6 -->
+                                <tr>
+                                    <td>6</td>
+                                    <td>Gestaltung des Alltagslebens und sozialer Kontakte</td>
+                                    <td>{{ results.raw_scores.get('6', 0.0) | round(2) }}</td>
+                                    <td>{{ (module_weights.get(6, 0) * 100) | round(0) }}%</td>
+                                    <td>{{ results.weighted_scores.get('6', 0.0) | round(2) }}</td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr class="table-primary fw-bold">
+                                    <td colspan="4" class="text-end">Gesamtpunktzahl (gewichtet):</td>
+                                    <td>{{ results.total_weighted_score | default(0) | round(2) }}</td>
+                                </tr>
+                                <tr class="table-success fw-bold">
+                                    <td colspan="4" class="text-end">Voraussichtlicher Pflegegrad:</td>
+                                    <td>{{ results.pflegegrad | default('N/A') }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div> <!-- End of table-responsive -->
 
-                    <div class="accordion-item"> {# Start accordion-item #}
-                        <h2 class="accordion-header" id="heading{{ module_num_str }}"> {# Use string key for HTML ID #}
-                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
-                                    data-bs-target="#collapse{{ module_num_str }}"> {# Use string key for HTML target #}
-                                <span class="fw-bold">{{ module_num_int }}: {{ current_module_info.name }}</span> {# Use integer key for name lookup #}
+                     <!-- Display Combined M2/M3 Raw Score -->
+                     <p class="text-muted small mt-2">Hinweis: Für die Module 2 und 3 wird der höhere Rohpunktwert ({% if results.raw_scores.get('2', 0) >= results.raw_scores.get('3', 0) %}Modul 2{% else %}Modul 3{% endif %}: {{ results.combined_m2_m3_raw | default(0) | round(2) }} Punkte) für die Gewichtung herangezogen.</p>
+                </div> <!-- End card-body -->
+            </div> <!-- End card -->
+        {% elif results %}
+             <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-light">
+                    <h2 class="h5 mb-0">Detailergebnisse nach Modulen</h2>
+                </div>
+                 <div class="card-body">
+                    <p class="text-muted">Detailergebnisse konnten nicht geladen werden (Gewichtungen fehlen).</p>
+                 </div>
+             </div>
+        {% endif %} {# End check for results and module_weights #}
 
-                                {# Access scores CORRECTLY from results.module_scores[module_num_str] #}
-                                <span class="ms-auto me-3">
-                                    <span class="badge bg-secondary">Roh: {{ current_module_scores.get('raw', 0.0) | round(1) }}</span>
-                                </span>
-                                <span> {# This span might be redundant depending on layout, adjust if needed #}
-                                    {# --- START: New Logic for Weighted Score Badge --- #}
-                                
-                                    {# Get potential weighted scores for M2 and M3 once for comparison #}
-                                    {% set m2_potential_weighted = results.module_scores['2'].get('weighted', 0.0) %}
-                                    {% set m3_potential_weighted = results.module_scores['3'].get('weighted', 0.0) %}
-                                
-                                    {# Decide which badge to show based on module ID #}
-                                    {% if module_num_str == '2' %}
-                                        {# Show for M2 if its potential score was chosen (>= M3's) #}
-                                        {% if m2_potential_weighted >= m3_potential_weighted %}
-                                            <span class="badge bg-info">Gewichtet: {{ results.combined_m2_m3_weighted | round(2) }} *</span>
-                                        {% endif %}
-                                    {% elif module_num_str == '3' %}
-                                        {# Show for M3 if its potential score was chosen (> M2's) #}
-                                        {% if m3_potential_weighted > m2_potential_weighted %}
-                                            <span class="badge bg-info">Gewichtet: {{ results.combined_m2_m3_weighted | round(2) }} *</span>
-                                        {% endif %}
-                                    {% else %}
-                                        {# Show standard weighted score for modules other than 2 & 3 #}
-                                        <span class="badge bg-info">Gewichtet: {{ current_module_scores.get('weighted', 0.0) | round(2) }}</span>
-                                    {% endif %}
-                                    {# --- END: New Logic for Weighted Score Badge --- #}
-                                </span>
-                            </button>
-                        </h2>
-                        <div id="collapse{{ module_num_str }}" class="accordion-collapse collapse" data-bs-parent="#resultsAccordion"> {# Use string key for HTML ID #}
-                            <div class="accordion-body">
-                                {# Check if module_answers_dict is actually a dictionary #}
-                                {% if module_answers_dict is mapping %}
-                                    <ul class="list-group list-group-flush"> {# Use flush for better spacing #}
-                                        {# Iterate directly over module_answers_dict items #}
-                                        {% for q_key, answer_data in module_answers_dict.items() | sort %}
-                                            {# Skip notes and visited keys here #}
-                                            {% if q_key not in ['notes', 'visited'] and answer_data is mapping %}
-                                                {% set question_found = namespace(data=None) %} {# Use namespace to allow assignment in loop #}
-
-                                                {# --- Find the corresponding question text --- #}
-                                                {% if module_num_str == '5' %}
-                                                    {# Module 5: Loop through parts and questions to find by ID #}
-                                                    {% if 5 in all_modules and all_modules[5].parts is defined %} {# Check existence #}
-                                                        {% for part in all_modules[5].parts %}
-                                                            {% if part.questions is defined %}
-                                                                {% for question in part.questions %}
-                                                                    {% if question.id == q_key %}
-                                                                        {% set question_found.data = question %}
-                                                                    {% endif %}
-                                                                {% endfor %}
-                                                            {% endif %}
-                                                        {% endfor %}
-                                                    {% endif %}
-                                                {% elif q_key.isdigit() %}
-                                                    {# Standard Modules: Find by index #}
-                                                    {% set q_index = q_key | int(-1) %}
-                                                    {% if module_num_int in all_modules and all_modules[module_num_int].questions is defined and q_index != -1 and q_index < all_modules[module_num_int].questions | length %}
-                                                        {% set question_found.data = all_modules[module_num_int].questions[q_index] %}
-                                                    {% endif %}
-                                                {% endif %}
-                                                {# --- End Find Question --- #}
-
-                                                <li class="list-group-item">
-                                                    <p class="mb-1"><strong>Frage:</strong> {{ question_found.data.text if question_found.data else ('Frage ' + q_key) }}</p> {# Display found text or key #}
-
-                                                    {# --- Display Answer Details Conditionally --- #}
-                                                    {% if module_num_str == '5' and 'count' in answer_data %}
-                                                        {# Module 5 Frequency Question #}
-                                                        <p class="mb-0 small text-muted"><strong>Häufigkeit:</strong> {{ answer_data.count | default(0) }}x {{ answer_data.unit | default('N/A') }}</p>
-                                                    {% elif 'text' in answer_data %}
-                                                        {# Standard Question (Modules 1-4, 6) OR Module 5 Standard (5.5.1) #}
-                                                        <p class="mb-0 small text-muted"><strong>Antwort:</strong> {{ answer_data.text | default('N/A') }}
-                                                        {% if answer_data.score is defined and answer_data.score is number %}
-                                                            ({{ answer_data.score }} Rohpunkte) {# Display score if available #}
-                                                        {% endif %}
-                                                        </p>
-                                                    {% else %}
-                                                        <p class="mb-0 small text-muted">Antwort: N/A</p> {# Fallback #}
-                                                    {% endif %}
-                                                    {# --- End Display Answer --- #}
-                                                </li>
-                                            {% endif %} {# End check q_key != 'notes' #}
-                                        {% endfor %} {# End inner loop q_key #}
-
-                                        {# Display notes if they exist for this module #}
-                                        {% if module_answers_dict.notes %}
-                                            <li class="list-group-item list-group-item-secondary mt-2">
-                                                <strong>Notizen zu diesem Modul:</strong><br>
-                                                <p class="mb-0 small" style="white-space: pre-wrap;">{{ module_answers_dict.notes }}</p>
-                                            </li>
-                                        {% endif %}
-                                    </ul>
-                                {% else %}
-                                     <p class="text-muted">Keine gültigen Antwortdaten für dieses Modul.</p>
-                                {% endif %} {# End check module_answers_dict is mapping #}
-                            </div> <!-- End accordion-body -->
-                        </div> <!-- End accordion-collapse -->
-                    </div> <!-- End accordion-item -->
-                {% endif %} {# End check module_num_int in all_modules and module_num_str in results.module_scores #}
-            {% endfor %} {# End outer loop module_num_str #}
-        {% else %}
-             <p class="text-muted p-3">Keine detaillierten Antwortdaten verfügbar.</p> {# Fallback if answers is empty or not a dict #}
-        {% endif %} {# End check answers is defined #}
-    </div> <!-- End accordion -->
-
-    <p class="mt-3 text-center"> {# Added text-center for potential styling #}
-        <small>* Bei Modul 2 (Kognitive Fähigkeiten) und Modul 3 (Verhaltensweisen) fließt nur der höhere der beiden ermittelten gewichteten Punktwerte in die Gesamtberechnung des Pflegegrades ein.</small>
-    </p>
-</div> <!-- End card -->
-
-        
 
         <!-- Actions Section -->
         <div class="actions text-center mt-4 mb-5">
-            {# Link back to the start page #}
+            {# Link back to the start page - adjusted route name if needed #}
             <a href="{{ url_for('intro') }}" class="btn btn-secondary me-2">
                 <i class="bi bi-arrow-repeat"></i> Neue Berechnung starten
             </a>
-            {# Button to trigger backend PDF generation via Fetch API #}
-            <script id="pdf-data" type="application/json">
-                {{ results | tojson | safe }}
+
+            {# Button to trigger backend PDF generation #}
+            {# This form assumes the /generate_pdf route uses session data #}
+            {# If /generate_pdf needs data passed explicitly, the JS approach from the accordion version is needed #}
+            <form action="{{ url_for('generate_pdf') }}" method="post" style="display: inline;">
+                 <button type="submit" class="btn btn-primary">
+                     <i class="bi bi-file-earmark-pdf"></i> Ergebnis-PDF generieren
+                 </button>
+            </form>
+
+            {# --- PDF Generation Script (Keep for now, might need adjustment) --- #}
+            {# This script was from the accordion version and expects specific data structure #}
+            {# It might fail if results doesn't contain 'answers', 'module_scores_raw' etc. #}
+            {# Consider simplifying PDF generation to rely on session data if possible #}
+            {# <script id="pdf-data" type="application/json">
+                {{ results | tojson | safe if results else '{}' }}
             </script>
             <button id="generate-pdf-button" type="button" class="btn btn-success">
-                <i class="bi bi-file-earmark-pdf"></i> Ergebnisse als PDF speichern
-            </button>
+                <i class="bi bi-file-earmark-pdf"></i> Ergebnisse als PDF speichern (JS)
+            </button> #}
+            {# --- End PDF Script --- #}
         </div>
 
     </div> {# End container #}
 
+    <footer class="bg-light text-center text-lg-start mt-5">
+        <div class="text-center p-3" style="background-color: rgba(0, 0, 0, 0.05);">
+            © 2025 Pflegegradrechner - Alle Rechte vorbehalten.
+            <p class="small text-muted mt-1">Dies ist ein Schätzungswerkzeug. Die endgültige Einstufung erfolgt durch den Medizinischen Dienst.</p>
+        </div>
+    </footer>
+
     <!-- Bootstrap Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- JavaScript for PDF Generation Fetch (Backend) -->
-    <script>
-        document.getElementById('generate-pdf-button').addEventListener('click', function() {
-            const resultsDataElement = document.getElementById('pdf-data');
-            if (!resultsDataElement) {
-                console.error('PDF data element not found!');
-                alert('Fehler: PDF-Daten nicht gefunden.');
-                return;
-            }
-
-            let resultsData;
-            try {
-                resultsData = JSON.parse(resultsDataElement.textContent);
-            } catch (e) {
-                console.error('Failed to parse PDF data:', e);
-                alert('Fehler: PDF-Daten konnten nicht gelesen werden.');
-                return;
-            }
-
-            // Prepare the payload EXACTLY as the backend /generate_pdf expects
-            const payload = {
-                detailed_results: {
-                    answers: resultsData.answers || {},
-                    module_scores_raw: resultsData.module_scores_raw || {},
-                    module_scores_weighted: resultsData.module_scores_weighted || {},
-                    which_module_contributed_m2_m3: resultsData.which_module_contributed_m2_m3
-                },
-                final_total_score: resultsData.final_total_score,
-                pflegegrad: resultsData.pflegegrad,
-                notes: resultsData.notes || {}, // Pass aggregated notes
-                benefits: resultsData.benefits || {} // Pass benefits data
-            };
-
-            console.log('Sending payload to /generate_pdf:', payload); // Debugging
-
-            // Disable button while processing
-            const pdfButton = this;
-            pdfButton.disabled = true;
-            pdfButton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> PDF wird erstellt...';
-
-
-            fetch('{{ url_for("generate_pdf") }}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-
-                },
-                body: JSON.stringify(payload)
-            })
-            .then(response => {
-                if (!response.ok) {
-                    // Try to get error message from backend JSON response
-                    return response.json().then(err => {
-                        throw new Error(err.error || `PDF Generation Failed: ${response.statusText} (Status: ${response.status})`);
-                    }).catch(() => {
-                        // Fallback if response is not JSON
-                        throw new Error(`PDF Generation Failed: ${response.statusText} (Status: ${response.status})`);
-                    });
-                }
-                return response.blob(); // Expecting PDF blob
-            })
-            .then(blob => {
-                const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = 'pflegegrad_results.pdf';
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url); // Clean up
-                a.remove();
-            })
-            .catch(error => {
-                console.error('Error generating or downloading PDF:', error);
-                alert(`Fehler beim Erstellen des PDFs: ${error.message}`);
-            })
-            .finally(() => {
-                 // Re-enable button
-                 pdfButton.disabled = false;
-                 pdfButton.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Ergebnisse als PDF speichern';
-            });
-        });
-    </script>
+    {# --- PDF Generation Script (Keep for now, might need adjustment) --- #}
+    {# This script was from the accordion version. If using the simple form submit button above, this script is not needed #}
+    {# If you want client-side PDF trigger with data payload, uncomment and adjust this #}
+    {# <script>
+    document.getElementById('generate-pdf-button')?.addEventListener('click', function() {
+        // ... (JavaScript code from previous version) ...
+        // IMPORTANT: This script needs 'results' to have the structure it expects
+        // (e.g., results.answers, results.module_scores_raw etc.)
+        // which might not match the current results_data structure.
+        // Needs review/update if you use this button.
+    });
+    </script> #}
+    {# --- End PDF Script --- #}
 
 </body>
 </html>

@@ -1,16 +1,22 @@
 import os
-from flask import Flask, render_template, request, make_response, url_for, session, redirect, flash, Response, current_app, jsonify
+import importlib
+import logging
+from flask import Flask, render_template, request, make_response, url_for, session, redirect, flash, Response, current_app, jsonify, send_file
 from fpdf import FPDF, XPos, YPos
 from fpdf.enums import XPos, YPos
 from modules.module1 import module1
 from modules.module2 import module2
-from modules.module3 import module3
+from modules.module3 import module3 
 from modules.module4 import module4
 from modules.module5 import module5
 from modules.module6 import module6
-from config.pflegegrad_config import pflegegrad_thresholds
+from config.pflegegrad_config import MODULE_WEIGHTS
 from config.benefits_data import pflegegrad_benefits
-from utils.calculations import  calculate_scores
+from utils import calculations
+
+# Configure logging (basic configuration)
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+log = logging.getLogger(__name__) # Create a logger instance named after the current module
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -86,220 +92,213 @@ def module_page(module_id):
         current_notes=current_notes,
         progress_percent=progress_percent, # Pass simple progress
         total_modules=total_modules,
+        
     )
 
 
 # --- Route for HANDLING module submission (POST requests) ---
 @app.route('/module/<int:module_id>/submit', methods=['POST'])
 def module_page_submit(module_id):
-    module_id_str = str(module_id)
-    if module_id not in all_modules:
-        flash("Ungültiges Modul.", "error")
-        return redirect(url_for('intro'))
 
-    module_data = all_modules[module_id]
-    current_answers = session.get('module_answers', {}).get(module_id_str, {})
+    log.debug(f"--- Entering submit for module {module_id} ---") # Added marker
 
-    # --- START: ADD DEBUG PRINT ---
-    print(f"\n--- DEBUG Submit Start M{module_id_str} ---")
-    print(f"DEBUG M{module_id_str}: Initial current_answers: {current_answers}")
-    # --- END: ADD DEBUG PRINT ---
-    # --- THIS IS THE NEW CODE BLOCK ---
-    if module_id == 5:
-        # --- Handle Module 5 (Frequency and Standard) ---
-        for part in module_data.get('parts', []):
-            for question in part.get('questions', []):
-                question_key = question['id'] # Use the specific ID like '5.1.1'
+    """
+    Handles the submission of answers for a specific module.
+    Stores answers in the session using the new dictionary format.
+    """
+    if not 1 <= module_id <= TOTAL_MODULES:
+        flash("Ungültige Modul-ID.", "danger")
+        return redirect(url_for('module_page', module_id=1))
 
-                if question.get('type') == 'frequency':
-                    count_str = request.form.get(f'freq_count_{question_key}')
-                    unit = request.form.get(f'freq_unit_{question_key}')
+    # --- Load the correct module data ---
+    try:
+        # Dynamically import the module based on module_id
+        module_data_import = importlib.import_module(f'modules.module{module_id}')
+        # Access the module dictionary (assuming it's named 'moduleX')
+        module_definition = getattr(module_data_import, f'module{module_id}')
+    except (ImportError, AttributeError):
+        flash(f"Fehler beim Laden der Moduldefinition für Modul {module_id}.", "danger")
+        return redirect(url_for('module_page', module_id=1))
 
-                    count = 0
-                    try:
-                        if count_str:
-                           count = float(count_str)
-                           if count < 0: count = 0
-                    except (ValueError, TypeError):
-                        count = 0
-
-                    current_answers[question_key] = {
-                        'count': count,
-                        'unit': unit if unit else ''
-                    }
-                    # Add text description (optional)
-                    current_answers[question_key]['text'] = f"{count}x pro {unit}" if count > 0 and unit else "Entfällt/Selbständig"
-
-                elif question.get('type') in ['radio', 'standard']: # Check for EITHER 'radio' OR 'standard'
-                    question_key = question['id'] # e.g., '5.5.1'
-
-                    # Assume the HTML input uses name="<question_id>", e.g., name="5.5.1"
-                    selected_option_index_str = request.form.get(question_key) # Use the question ID directly as the key
-
-                    if selected_option_index_str is not None and selected_option_index_str.strip() != '':
-                        try:
-                            selected_option_index = int(selected_option_index_str)
-                            options = question.get('options', [])
-                            if 0 <= selected_option_index < len(options):
-                                selected_option = options[selected_option_index]
-                                # Save the data using the question_key (e.g., '5.5.1')
-                                current_answers[question_key] = {
-                                    # 'option_index': selected_option_index, # You can uncomment this if you need the index later
-                                    'text': selected_option.get('text', 'N/A'),
-                                    'score': selected_option.get('score', 0)
-                                }
-                                print(f"DEBUG: Saved answer for {question_key}: {current_answers[question_key]}") # Add debug print
-                            else:
-                                 print(f"DEBUG: Invalid index {selected_option_index} for {question_key}")
-                        except (ValueError, TypeError):
-                             print(f"DEBUG: Invalid value '{selected_option_index_str}' for {question_key}")
-                             pass # Ignore if index is not a valid integer
-                    else:
-                        print(f"DEBUG: No answer submitted for {question_key}")
-                        # Optionally save a default 'not answered' state if needed
-                        # current_answers[question_key] = {'text': 'Nicht beantwortet', 'score': 0}
-                # else: handle other types if they exist
-
-    else:
-        # --- Handle Standard Modules (1, 2, 3, 4, 6) ---
-        for question_index, question in enumerate(module_data.get('questions', [])):
-            question_index_str = str(question_index)
-            answer_key = f'answer_{module_id_str}_{question_index_str}'
-            selected_option_index_str = request.form.get(answer_key)
-
-            if selected_option_index_str is not None:
-                try:
-                    selected_option_index = int(selected_option_index_str)
-                    options = question.get('options', [])
-                    if 0 <= selected_option_index < len(options):
-                        selected_option = options[selected_option_index]
-                        current_answers[question_index_str] = {
-                            'option_index': selected_option_index,
-                            'text': selected_option.get('text', ''),
-                            'score': selected_option.get('score', 0)
-                        }
-                except ValueError:
-                    pass
-    # --- END OF NEW CODE BLOCK ---
-
-    # --- Store Notes --- (Keep your existing logic here)
-    notes_key = f'module_{module_id_str}_notes'
-    notes_text = request.form.get(notes_key, '').strip()
-    # --- START: ADD DEBUG PRINTS for Notes ---
-    print(f"DEBUG M{module_id_str}: Notes Key Checked: '{notes_key}'")
-    print(f"DEBUG M{module_id_str}: Notes Text Retrieved: '{notes_text}'")
-    # --- END: ADD DEBUG PRINTS for Notes ---
-    if notes_text:
-        current_answers['notes'] = notes_text # Add notes to the temporary dict
-
-    # Mark module as visited (Add this to the temporary dict)
-    current_answers['visited'] = True
-
-    # --- Update session data --- (Update the session with the temporary dict)
+    # --- Initialize or retrieve session data ---
     if 'module_answers' not in session:
         session['module_answers'] = {}
-    # Replace the entire entry for this module with the new answers
-    session['module_answers'][module_id_str] = current_answers
-    session.modified = True # Ensure session is saved
 
-    # --- Determine next step --- (Keep your existing logic here)
-    next_module_id = module_id + 1
-    print(f"DEBUG Submit Check: module_id={module_id}, next_module_id={next_module_id}, TOTAL_MODULES={TOTAL_MODULES}")
-    if next_module_id > TOTAL_MODULES:
-        return redirect(url_for('calculate'))
-    else:
-        # Redirect to the GET endpoint for the next module
+    # Use module_id as string key for consistency
+    module_id_str = str(module_id)
+    if module_id_str not in session['module_answers']:
+        session['module_answers'][module_id_str] = {}
+        log.debug(f"Initialized new entry for module '{module_id_str}' in session['module_answers'].") # Added log
+    
+
+    current_module_answers = session['module_answers'][module_id_str]
+
+    log.debug(f"Raw form data received for module {module_id}: {request.form.to_dict()}") # Log the entire form data
+
+    # --- Process form data ---
+    processed_questions = set() # Keep track of questions processed via radio buttons
+
+    for key, value in request.form.items():
+        # Check if the key is a question ID from the current module definition
+        if key in module_definition['questions']:
+            question_id = key
+            # Store the selected score (which is the value submitted)
+            current_module_answers[question_id] = value # Value is the score string ("0", "1", "3", etc.)
+            processed_questions.add(question_id)
+
+            # +++ ADD THIS LOGGING +++
+            log.debug(f"  Processed radio/select: q_id='{question_id}', value='{value}'")
+            # ++++++++++++++++++++++++
+
+        # Check for frequency count input (e.g., "freq_count_5.1.1")
+        elif key.startswith('freq_count_'):
+            question_id = key.replace('freq_count_', '')
+            if question_id in module_definition.get('questions', {}):
+                freq_key = f"{question_id}_freq"
+                if freq_key not in current_module_answers:
+                    current_module_answers[freq_key] = {}
+                count_val = value if value.isdigit() else '0'
+                current_module_answers[freq_key]['count'] = count_val
+                # +++ ADD THIS LOGGING +++
+                log.debug(f"  Processed freq_count: q_id='{question_id}', count='{count_val}'")
+                # ++++++++++++++++++++++++
+
+        # Check for frequency unit input (e.g., "freq_unit_5.1.1")
+        elif key.startswith('freq_unit_'):
+            question_id = key.replace('freq_unit_', '')
+            if question_id in module_definition.get('questions', {}):
+                freq_key = f"{question_id}_freq"
+                if freq_key not in current_module_answers:
+                    current_module_answers[freq_key] = {}
+                unit_val = value
+                current_module_answers[freq_key]['unit'] = unit_val
+                # +++ ADD THIS LOGGING +++
+                log.debug(f"  Processed freq_unit: q_id='{question_id}', unit='{unit_val}'")
+                # ++++++++++++++++++++++++
+
+        # Check for notes (e.g., "module_3_notes") - Make sure name matches HTML form
+        # Consider a more generic name like 'notes' if possible
+        elif key == f"module_{module_id}_notes" or key == 'notes': # Check for both possible names
+             notes_val = value.strip()
+             current_module_answers['notes'] = notes_val
+             # +++ ADD THIS LOGGING +++
+             log.debug(f"  Processed notes: key='{key}', value='{notes_val}'")
+             # ++++++++++++++++++++++++
+        else:
+             # +++ ADD THIS LOGGING +++
+             log.debug(f"  Skipped unknown form key: '{key}' with value '{value}'") # Log unexpected keys
+             # ++++++++++++++++++++++++
+
+
+    # --- Handle frequency questions where count might determine score (Module 5 logic) ---
+    # This logic might still need review later, but let's focus on data capture first
+    if module_id == 5:
+        log.debug("Applying specific Module 5 frequency logic...") # Added log
+        for q_id, q_data in module_definition.get('questions', {}).items():
+            if q_data.get('type') == 'frequency': # Use .get()
+                # Ensure the base question ID exists even if only frequency was submitted
+                if q_id not in current_module_answers:
+                     current_module_answers[q_id] = None # Mark for calculation later
+                     log.debug(f"  M5 Logic: Set base q_id '{q_id}' to None as it wasn't in form.") # Added log
+                # Ensure the _freq key exists if the base question exists
+                freq_key = f"{q_id}_freq"
+                if freq_key not in current_module_answers:
+                    # If base radio was selected but no freq count/unit submitted, add default freq info
+                    current_module_answers[freq_key] = {'count': '0', 'unit': ''} # Or appropriate default
+                    log.debug(f"  M5 Logic: Added default freq data for q_id '{q_id}' as it was missing.") # Added log
+
+
+    # --- Update the session ---
+    # +++ ADD THIS LOGGING +++
+    log.debug(f"Final 'current_module_answers' for module {module_id} BEFORE saving to session: {current_module_answers}")
+    # ++++++++++++++++++++++++
+    session['module_answers'][module_id_str] = current_module_answers
+    session.modified = True # Important!
+
+    # +++ ADD THIS LOGGING +++
+    log.debug(f"Session['module_answers']['{module_id_str}'] AFTER saving: {session['module_answers'].get(module_id_str)}")
+    log.debug(f"--- Exiting submit for module {module_id} ---") # Added marker
+    # ++++++++++++++++++++++++
+
+    # --- Redirect to next step ---
+    if module_id < TOTAL_MODULES:
+        next_module_id = module_id + 1
+        # flash(f"Modul {module_id} gespeichert. Weiter zu Modul {next_module_id}.", "success") # Optional: Keep flash message
         return redirect(url_for('module_page', module_id=next_module_id))
-
+    else:
+        # flash("Alle Module abgeschlossen. Ergebnisse werden berechnet.", "success") # Optional: Keep flash message
+        return redirect(url_for('calculate'))
 # --- Update calculate function ---
 @app.route('/calculate')
 def calculate():
     """
-    Triggers the calculation of all scores and the Pflegegrad.
-    Delegates the actual calculation to utils.calculations.calculate_scores.
-    Stores the results in the session and redirects to the results page.
+    Performs the Pflegegrad calculation using the stored answers
+    and stores the results in the session. Redirects back to /results.
     """
-    # Use 'answers' as the session key consistently
-    if 'module_answers' not in session or not session['module_answers']:
-        flash("Bitte füllen Sie zuerst die Module aus.", "warning")
-        # Redirect to the first module page or an intro page
-        return redirect(url_for('module_page', module_id=1)) # Or your intro route
+    log.debug("Entered /calculate route")
+    all_answers = session.get('module_answers')
 
-    all_answers_from_session = session.get('module_answers', {})
+    if not all_answers or not isinstance(all_answers, dict):
+        flash("Keine Modulantworten gefunden. Bitte füllen Sie die Module zuerst aus.", "warning")
+        log.warning("/calculate: module_answers not found or invalid in session.")
+        # Redirect to the start if no answers are found
+        return redirect(url_for('module_page', module_id=1))
 
-    # Call the single function from utils/calculations.py to do ALL calculations
     try:
-        calculated_scores_dict = calculate_scores(all_answers_from_session)
-    except Exception as e:
-        # Log the error for debugging
-        print(f"ERROR during calculation: {e}")
-        flash("Ein Fehler ist bei der Berechnung aufgetreten. Bitte versuchen Sie es erneut.", "danger")
-        # Redirect back to the last module or start page
-        # Find the last answered module if possible, otherwise default
-        last_module = max([int(k) for k in all_answers_from_session.keys() if k.isdigit()] or [0])
-        if last_module > 0:
-             return redirect(url_for('module_page', module_id=last_module))
+        # Call the updated calculate_scores function
+        log.debug(f"/calculate: Calling calculations.calculate_scores with keys: {list(all_answers.keys())}")
+        results_data = calculations.calculate_scores(all_answers) # Use the imported module
+        log.debug(f"/calculate: Received results_data: {results_data}")
+
+        if results_data is None:
+            # Handle calculation failure (error logged within calculate_scores)
+            flash("Ein Fehler ist bei der Berechnung aufgetreten. Details siehe Server-Log.", "danger")
+            log.error("/calculate: calculations.calculate_scores returned None.")
+            session.pop('calculation_results', None) # Clear potentially stale results
+            # Redirect back to results, which will then likely redirect to module 1
+            return redirect(url_for('results'))
         else:
-             return redirect(url_for('module_page', module_id=1)) # Or intro
+            # Store the entire results dictionary in the session
+            session['calculation_results'] = results_data
+            session.modified = True
+            log.info(f"/calculate: Calculation successful. Stored results in session. Redirecting to /results.")
+            return redirect(url_for('results'))
 
-    # Store the complete results dictionary in the session
-    session['scores'] = calculated_scores_dict
-    session.modified = True # Mark session as modified
+    except Exception as e:
+        log.exception(f"/calculate: Unexpected error during calculation: {e}") # Log the full traceback
+        flash(f"Ein unerwarteter Fehler ist bei der Berechnung aufgetreten: {e}", "danger")
+        session.pop('calculation_results', None) # Clear potentially stale results
+        # Redirect back to results, which will then likely redirect to module 1
+        return redirect(url_for('results'))
 
-    print("DEBUG: Calculation complete via calculate_scores, redirecting to results.")
-    # Redirect to the route that will display the results
-    return redirect(url_for('results'))
 
-# --- Your /results Route (handles displaying the calculated scores) ---
 @app.route('/results')
 def results():
-    """Displays the final results and Pflegegrad."""
-    if 'scores' not in session:
-        flash("Berechnungsergebnisse nicht gefunden. Bitte füllen Sie zuerst die Module aus.", "warning")
-        # Redirect to calculate, which will handle missing answers
-        return redirect(url_for('calculate'))
+    """
+    Displays the calculation results page.
+    """
+    log.debug("Entered /results route")
+    # Retrieve the results dictionary calculated by /calculate
+    results_data = session.get('calculation_results')
 
-    # Get the calculated scores and original answers from the session
-    scores_data = session.get('scores', {})
-    answers_data = session.get('module_answers', {}) # Needed to show the user's answers
+    if not results_data:
+        log.warning("/results: 'calculation_results' not found in session. Redirecting to /calculate.")
+        # If results aren't calculated yet, trigger calculation
+        # Check if answers exist first, otherwise start over
+        if 'module_answers' not in session or not session['module_answers']:
+             flash("Bitte füllen Sie zuerst die Bewertungsmodule aus.", "warning")
+             return redirect(url_for('module_page', module_id=1)) # Start from module 1
+        else:
+             return redirect(url_for('calculate')) # Trigger calculation
 
-    # Extract key results for easier access in the template (optional)
-    final_score = scores_data.get('total_weighted', 0.0)
-    pflegegrad = scores_data.get('pflegegrad', 0)
+    # Clear calculation results from session after retrieving to prevent stale data on refresh?
+    # Optional: session.pop('calculation_results', None)
+    # If you pop it, refreshing /results will trigger /calculate again.
+    # If you don't pop it, refreshing shows the same results until a new calculation is done.
 
-    # --- Fetch Benefits Data (This logic belongs here, not in /calculate) ---
-    # Import your benefits data structure
-    # from data.benefits import pflegegrad_benefits # Example import
-    # Define or import pflegegrad_benefits = { ... }
-    # benefits_for_pg = pflegegrad_benefits.get(pflegegrad, {})
-    # current_benefits = benefits_for_pg # Add logic for periods if needed
-
-    # --- Aggregate Notes (This logic belongs here) ---
-    aggregated_notes = {
-        mid: data.get('notes', '')
-        for mid, data in answers_data.items()
-        if isinstance(data, dict) and data.get('notes')
-    }
-
-
-    #print("-" * 40) # Separator for clarity
-    #print(f"DEBUG Results Route: Data being passed to template:")
-    #print(f"  results (scores_data): {scores_data}")
-    #print(f"  answers (answers_data): {answers_data}")
-    #print(f"  all_modules keys: {list(all_modules.keys())}") # Check if modules loaded
-    #print(f"  notes: {aggregated_notes}")
-    #print("-" * 40) # Separator
-
-    # Render the results template, passing all necessary data
-    return render_template(
-        'results.html', # Make sure your template is named results.html
-        results=scores_data, # Pass the whole scores dictionary
-        answers=answers_data, # Pass the original answers
-        all_modules=all_modules, # Pass module definitions for displaying question text
-        notes=aggregated_notes,
-        # benefits=current_benefits # Pass benefits data
-        pflegegrad=pflegegrad # Pass pflegegrad for convenience
-    )
+    log.debug(f"/results: Rendering results.html with data: {results_data}")
+    # Pass the entire results dictionary to the template under the key 'results'
+    return render_template('results.html', results=results_data, module_weights=MODULE_WEIGHTS)
 
 class ReportPDF(FPDF):
     def __init__(self, *args, **kwargs):
@@ -359,14 +358,18 @@ def generate_pdf():
     Generates a professional PDF report based on session data.
     Includes client info, consultant notes, branding, and uses UTF-8 fonts.
     """
-    scores_data = session.get('scores', {})
+    scores_data = session.get('calculation_results', {})
     answers_data = session.get('module_answers', {})
     client_info = session.get('client_info', {})
     final_notes = session.get('final_notes', '')
 
     if not scores_data or not answers_data:
-         current_app.logger.error("PDF Generation failed: Missing scores or answers data in session.")
-         return jsonify({"error": "Sitzungsdaten für PDF fehlen. Bitte Berechnung erneut durchführen."}), 400
+        missing_data = []
+        if not scores_data: missing_data.append("'calculation_results'")
+        if not answers_data: missing_data.append("'module_answers'")
+        log.error(f"PDF Generation failed: Missing data in session: {', '.join(missing_data)}")
+        flash(f"Sitzungsdaten ({', '.join(missing_data)}) für PDF fehlen. Bitte Berechnung erneut durchführen.", "danger")
+        return redirect(url_for('results'))
 
     try:
         final_total_score = scores_data.get('total_weighted', 0.0)
@@ -461,8 +464,8 @@ def generate_pdf():
             pdf.cell(usable_width, 8, f"--- {module_name} ---", new_x=XPos.LMARGIN, new_y=YPos.NEXT) # Fixed ln=1
             pdf.set_font('DejaVu', '', 10)
 
-            raw_score = module_score_data.get('raw', 0.0)
-            weighted_score = module_score_data.get('weighted', 0.0)
+            raw_score = module_score_data.get('raw_score', 0.0)
+            weighted_score = module_score_data.get('weighted_score', 0.0)
 
             pdf.cell(usable_width, 6, f"Rohpunkte: {float(raw_score):.1f}", new_x=XPos.LMARGIN, new_y=YPos.NEXT) # Fixed ln=1
 
@@ -531,20 +534,23 @@ def generate_pdf():
              pdf.ln(10)
 
         # --- Output the PDF ---
-        pdf_output_bytes = bytes(pdf.output())
-        current_app.logger.info(f"PDF Generated successfully. Type: {type(pdf_output_bytes)}")
-        return Response(
-            pdf_output_bytes,
-            mimetype='application/pdf',
-            headers={'Content-Disposition': 'attachment;filename=Pflegegrad_Bericht.pdf'}
-        )
+        pdf_output_bytes = pdf.output(dest='S')
+        log.info(f"PDF Generated successfully. Size: {len(pdf_output_bytes)} bytes")
+
+        response = make_response(pdf_output_bytes)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = 'attachment; filename=Pflegegrad_Bericht.pdf'
+        return response
 
     except Exception as e:
-        current_app.logger.error(f"Error generating PDF: {e}", exc_info=True)
-        return jsonify({"error": f"Ein interner Serverfehler ist bei der PDF-Erstellung aufgetreten: {e}"}), 500
+        log.error(f"Error generating PDF: {e}", exc_info=True)
+        flash(f"Ein interner Serverfehler ist bei der PDF-Erstellung aufgetreten: {e}", "danger")
+        return redirect(url_for('results'))
 
 # --- Your other routes ---
-
+@app.route('/debug-session')
+def debug_session():
+    return f"<pre>{session.get('module_answers', 'Session data not found.')}</pre>"
 
 # --- Add routes for Client Info and Final Notes (NEXT STEP) ---
 

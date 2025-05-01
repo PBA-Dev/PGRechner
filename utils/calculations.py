@@ -1,375 +1,341 @@
-# utils/calculations.py
-import math
+import logging
+from config.pflegegrad_config import SCORE_TO_PFLEGEGRAD, MODULE_WEIGHTS, MODULE_POINT_CAPS
 
-# --- Weighted Score Mapping Tables ---
-# Ensure these tables match the official NBA guidelines exactly.
-# The Module 5 table here might differ from standard NBA (check source).
-weighted_score_mapping_tables = {
-    # ... other modules ...
-    '1': [
-        (0, 0),          # 0 bis 1 Punkte -> 0
-        (2, 2.5),        # 2 bis 3 Punkte -> 2.5
-        (4, 5.0),        # 4 bis 5 Punkte -> 5.0
-        (6, 7.5),        # 6 bis 9 Punkte -> 7.5
-        (10, 10.0)       # 10 bis 15 Punkte -> 10.0
-    ],
-    
-    '2': [
-        (0, 0),          # 0 bis 1 Punkte -> 0 gewichtet
-        (2, 3.75),       # 2 bis 5 Punkte -> 3.75 gewichtet
-        # Add other steps if needed from full BRi, up to:
-        (17, 15),         # 17 bis 33 Punkte -> 15 gewichtet (Max)
-        # Note: The provided text snippet might be incomplete for mid-ranges.
-        # We are using the key thresholds given. Add intermediate steps if known.
-        # For now, any score >= 17 gets 15. Scores between 5 and 17 need clarification
-        # from the full document if precise intermediate steps are required,
-        # otherwise map_raw_to_weighted_score will use the last valid step (3.75).
-        # Let's assume for now:
-        (6, 7.5),        # Placeholder - Adjust if official table differs
-        (10, 11.25),     # Placeholder - Adjust if official table differs
-    ],
-    # --- UPDATE THIS ENTRY FOR MODULE 3 ---
-    '3': [
-        (0, 0),          # keine Punkte -> 0 gewichtet
-        (1, 3.75),       # 1 bis 2 Punkte -> 3.75 gewichtet
-        (3, 7.5),        # 3 bis 4 Punkte -> 7.5 gewichtet
-        (5, 11.25),      # 5 bis 6 Punkte -> 11.25 gewichtet
-        (7, 15)          # 7 bis 65 Punkte -> 15 gewichtet (Max)
-    ],
-    # --- END UPDATE FOR MODULE 3 ---
-    '4': [
-        (0, 0),          # 0 bis 2 Punkte -> 0
-        (3, 10),         # 3 bis 7 Punkte -> 10
-        (8, 20),         # 8 bis 18 Punkte -> 20
-        # --- PLACEHOLDERS - REPLACE IF YOU HAVE THE FULL TABLE ---
-        (19, 30),        # Assuming 19-36 -> 30 (Example placeholder)
-        # --- END PLACEHOLDERS ---
-        (37, 40)         # 37 bis 54 Punkte -> 40
-    ],
-    # --- UPDATE THIS ENTRY FOR MODULE 5 ---
-    '5': [
-        (0, 0),
-        (1, 5),          # 1 Punkt -> 5 gewichtet
-        (2, 10),         # 2 bis 3 Punkte -> 10 gewichtet
-        (4, 15),         # 4 bis 5 Punkte -> 15 gewichtet
-        (6, 20)          # 6 bis 15 Punkte -> 20 gewichtet
-    ],
-    # --- END UPDATE FOR MODULE 5 ---
-    # --- UPDATE THIS ENTRY FOR MODULE 6 ---
-    '6': [
-        (0, 0),          # keine Punkte -> 0
-        (1, 3.75),       # 1 bis 3 Punkte -> 3.75
-        (4, 7.5),        # 4 bis 6 Punkte -> 7.5
-        (7, 11.25),      # 7 bis 11 Punkte -> 11.25
-        (12, 15)         # 12 bis 18 Punkte -> 15
-    ],
-    # --- END UPDATE FOR MODULE 6 ---
-    # ... potentially other modules if you have them ...
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+log = logging.getLogger(__name__)
+
+# --- Constants ---
+MODULE_WEIGHTS = { # Defined in pflegegrad_config.py
+     1: 0.10,
+     2: 0.15, # Combined weight for M2+M3
+     3: 0.15, # Combined weight for M2+M3
+     4: 0.20,
+     5: 0.15, # Placeholder - M5 is handled differently
+     6: 0.15,
+ }
+
+SCORE_TO_PFLEGEGRAD = {
+    90.0: 5,
+    70.0: 4,
+    47.5: 3,
+    27.0: 2,
+    12.5: 1
+    # Grade 0 is handled if score is below 12.5
 }
 
-# --- Helper Functions ---
 
-def map_score_to_points(score, ranges):
-    """Helper function to map a score to points based on ranges (used internally in M5)."""
-    # Ensure score is treated as a number for comparison
-    try:
-        numeric_score = float(score)
-        for lower_bound, points in reversed(ranges): # Check from highest threshold down
-            if numeric_score >= lower_bound:
-                return float(points) # Return as float
-    except (ValueError, TypeError):
-        pass # If score is not a valid number, fall through to return 0
-    return 0.0 # Default to 0.0 if no range matches or score is invalid
-
-def map_raw_to_weighted_score(raw_score, mapping_table):
-    """Maps a raw score to a weighted score using the provided table."""
-    # Ensure raw_score is a number
-    try:
-        current_raw_score = float(raw_score)
-    except (ValueError, TypeError):
-        return 0.0 # Return 0.0 if raw_score is not a valid number
-
-    weighted_score = 0.0
-    # Iterate from highest threshold down to find the correct score
-    for threshold, score_points in reversed(mapping_table):
-        if current_raw_score >= threshold:
-            weighted_score = score_points
-            break # Found the correct bracket
-    return float(weighted_score) # Ensure return is float
-
-def calculate_pflegegrad(total_weighted_score):
-    """Determines the Pflegegrad based on the total weighted score."""
-    try:
-        score = float(total_weighted_score)
-    except (ValueError, TypeError):
-        return "N/A" # Or 0 or specific error indicator
-
-    if score >= 90: return 5
-    elif score >= 70: return 4
-    elif score >= 47.5: return 3
-    elif score >= 27: return 2
-    elif score >= 12.5: return 1
-    else: return 0 # Kein Pflegegrad
-
-def get_score(module_answers, question_key, default=0.0):
+def map_frequency_to_score(count, unit, question_id):
     """
-    Safely retrieves the 'score' for a specific question key from a module's
-    answer dictionary. Handles missing questions or missing 'score' keys.
-    Returns score as float.
+    Maps frequency count and unit to a score (0, 1, 3, 5) based on NBA rules.
+    THIS IS A PLACEHOLDER - NEEDS ACTUAL NBA LOGIC.
+
+    Args:
+        count (int): The frequency count (e.g., 0, 1, 2, ...).
+        unit (str): The frequency unit (e.g., 'pro Tag', 'pro Woche', 'pro Monat').
+        question_id (str): The ID of the question (e.g., '5.1.1'), as rules might differ.
+
+    Returns:
+        int: The corresponding score (0, 1, 3, or 5).
     """
-    # Ensure question_key is treated as a string if your session keys are strings
-    question_answer = module_answers.get(str(question_key), {})
-    # Check if question_answer is a dictionary before getting 'score'
-    if isinstance(question_answer, dict):
-        score = question_answer.get('score', default)
-        # Ensure score is numeric, default if not
-        try:
-            return float(score) if score is not None else float(default)
-        except (ValueError, TypeError):
-            return float(default)
-    # If the stored answer wasn't a dictionary (e.g., for older modules maybe?), return default
-    return float(default)
+    # --- !!! IMPORTANT: Replace this placeholder logic with actual NBA rules !!! ---
+    # This example assumes simple thresholds, which is likely incorrect.
+    # The real rules depend on the specific question and the exact frequency definitions.
 
-# --- Module 5 Calculation ---
-import math # Make sure to import math at the top of your utils/calculations.py file
+    if count == 0:
+        return 0
 
-# You might already have this helper function defined outside calculate_module5_raw_score.
-# If so, you don't need to redefine it inside. Ensure it's accessible.
-# If it's ONLY defined inside the old function, keep this definition here.
-def get_value(data, key, value_type='score', default=0):
-    """Helper to safely get count or score."""
-    item = data.get(str(key), {}) # Ensure key is string
-    val = item.get(value_type, default)
-    try:
-        if value_type in ['score', 'count']: return float(val) if val is not None else float(default)
-        return val
-    except (ValueError, TypeError): return float(default) if value_type in ['score', 'count'] else default
+    # Example placeholder logic (adjust based on actual rules)
+    if unit == 'pro Tag':
+        if count >= 3: # Example: 3+ times a day = 5 points
+            return 5
+        elif count >= 1: # Example: 1-2 times a day = 3 points
+            return 3
+        else: # Should not happen if count > 0, but as fallback
+             return 1 # Or 0 depending on rules
+    elif unit == 'pro Woche':
+        if count >= 5: # Example: 5+ times a week = 5 points? (Check rules)
+            return 5
+        elif count >= 3: # Example: 3-4 times a week = 3 points?
+            return 3
+        elif count >= 1: # Example: 1-2 times a week = 1 point?
+            return 1
+        else:
+            return 0
+    elif unit == 'pro Monat':
+         if count >= 5: # Example: 5+ times a month = 3 points? (Check rules)
+             return 3
+         elif count >= 1: # Example: 1-4 times a month = 1 point?
+             return 1
+         else:
+             return 0
+    else: # Fallback for unknown units or if unit is empty
+        # Maybe map based on count alone if unit is missing? Check rules.
+        if count >= 5: return 5
+        if count >= 3: return 3
+        if count >= 1: return 1
+        return 0
+    # --- End of Placeholder Logic ---
 
-# You might already have this helper function defined outside calculate_module5_raw_score.
-# If so, you don't need to redefine it inside. Ensure it's accessible.
-# If it's ONLY defined inside the old function, keep this definition here.
-def get_freq_data(data, key):
-    """Helper to get frequency data robustly."""
-    item = data.get(str(key), {}) # Ensure key is string
-    # Use the accessible get_value function
-    count = get_value(data, key, 'count', 0)
-    unit = item.get('unit', '').lower().strip()
-    return count, unit
 
-def calculate_module5_raw_score(answers):
+def calculate_module_5_score_official(module_5_answers):
     """
-    Calculates the raw score for Module 5 based on official NBA guidelines (BRi).
-    The final raw score is capped at 15.
+    Calculates the raw score for Module 5 based on the official NBA guidelines.
+    Reads the new dictionary format including frequency data.
+
+    Args:
+        module_5_answers (dict): Dictionary containing answers for Module 5.
+                                 Example: {'5.1.1': None, '5.1.1_freq': {'count': '2', 'unit': 'pro Tag'}, '5.5.1': '1', ...}
+
+    Returns:
+        float: The calculated raw score for Module 5.
     """
-    print(f"DEBUG M5 Calc (Official): Input answers: {answers}")
-    epsilon = 0.0001 # Small value for float comparisons
+    total_score = 0.0
+    log.debug(f"M5 Calc (Official): Input answers: {module_5_answers}")
 
-    # --- Part 1 (Kriterien 4.5.1 bis 4.5.7) ---
-    part1_keys = [f'5.1.{i}' for i in range(1, 8)]
-    daily_sum_p1, weekly_sum_p1, monthly_sum_p1 = 0.0, 0.0, 0.0
-    for key in part1_keys:
-        if key in answers:
-            count, unit = get_freq_data(answers, key)
-            if count > epsilon:
-                if unit == 'pro tag': daily_sum_p1 += count
-                elif unit == 'pro woche': weekly_sum_p1 += count
-                elif unit == 'pro monat': monthly_sum_p1 += count
-    # Rounding to 4 decimal places as per footnote 13 (applied to average)
-    avg_per_day_p1 = round(daily_sum_p1 + (weekly_sum_p1 / 7.0) + (monthly_sum_p1 / 30.0), 4)
+    if not isinstance(module_5_answers, dict):
+        log.error("M5 Calc Error: Input answers is not a dictionary.")
+        return 0.0
 
-    points_part1 = 0.0
-    if avg_per_day_p1 >= (8.0 + epsilon): points_part1 = 3.0 # mehr als achtmal täglich (>8)
-    elif avg_per_day_p1 >= (3.0 + epsilon): points_part1 = 2.0 # mehr als dreimal bis maximal achtmal täglich (>3 to 8)
-    elif avg_per_day_p1 >= (1.0 - epsilon): points_part1 = 1.0 # mindestens ein- bis maximal dreimal täglich (1 to 3)
-    # else 0 points (implicitly)
+    processed_freq_questions = set()
 
-    print(f"DEBUG M5 Part 1 (1-7): Avg={avg_per_day_p1:.4f}, Points={points_part1}")
+    for key, value in module_5_answers.items():
+        # Skip notes and frequency data entries themselves
+        if key == 'notes' or key.endswith('_freq'):
+            continue
 
-    # --- Part 2 (Kriterien 4.5.8 bis 4.5.11) ---
-    part2_keys = [f'5.2.{i}' for i in range(1, 5)] # Keys 5.2.1 to 5.2.4
-    daily_sum_p2, weekly_sum_p2, monthly_sum_p2 = 0.0, 0.0, 0.0
-    for key in part2_keys:
-        if key in answers:
-            count, unit = get_freq_data(answers, key)
-            if count > epsilon:
-                if unit == 'pro tag': daily_sum_p2 += count
-                elif unit == 'pro woche': weekly_sum_p2 += count
-                elif unit == 'pro monat': monthly_sum_p2 += count
-    # Rounding to 4 decimal places as per footnote 13 (applied to average)
-    avg_per_day_p2 = round(daily_sum_p2 + (weekly_sum_p2 / 7.0) + (monthly_sum_p2 / 30.0), 4)
+        question_id = key
+        score_value = value # Can be score string ("0", "1", etc.) or None
 
-    points_part2 = 0.0
-    # Approx daily equivalent for 1/week is 1/7 = 0.142857...
-    min_weekly_avg = 1.0 / 7.0
-    if avg_per_day_p2 >= (3.0 - epsilon): points_part2 = 3.0 # mindestens dreimal täglich (>=3)
-    elif avg_per_day_p2 >= (1.0 - epsilon): points_part2 = 2.0 # ein- bis unter dreimal täglich (1 to <3)
-    elif avg_per_day_p2 >= (min_weekly_avg - epsilon): points_part2 = 1.0 # ein- bis mehrmals wöchentlich (>=1/wk to <1/day)
-    # else 0 points (implicitly)
+        # Check if it's a standard radio question (score is directly provided)
+        if score_value is not None:
+            try:
+                score = float(score_value)
+                total_score += score
+                log.debug(f"M5 Calc: Added score {score} for standard question {question_id}")
+            except (ValueError, TypeError):
+                log.warning(f"M5 Calc: Invalid score value '{score_value}' for question {question_id}. Skipping.")
 
-    print(f"DEBUG M5 Part 2 (8-11): Avg={avg_per_day_p2:.4f}, Points={points_part2}")
+        # Check if it's a frequency question (score is None, needs calculation)
+        elif score_value is None:
+            freq_key = f"{question_id}_freq"
+            freq_data = module_5_answers.get(freq_key)
 
-    # --- Part 3/4 (Kriterien 4.5.12 bis 4.5.15 + K) ---
-    # Calculate base points according to official multipliers
-    epsilon = 1e-6 # Small value for float comparisons
-    base_points_p3_4 = 0.0
+            if isinstance(freq_data, dict):
+                try:
+                    count_str = freq_data.get('count', '0')
+                    count = int(count_str) if count_str.isdigit() else 0
+                    unit = freq_data.get('unit', '')
 
-    # 4.5.12 (Zeitintensive) - Key 5.3.1 (assuming only one key for this)
-    count, unit = get_freq_data(answers, '5.3.1')
-    if count > epsilon:
-        if unit == 'pro tag': base_points_p3_4 += count * 60.0
-        elif unit == 'pro woche': base_points_p3_4 += count * 4.3
-        elif unit == 'pro monat': base_points_p3_4 += count * 2.0
+                    # Map frequency to score using the (placeholder) function
+                    points = map_frequency_to_score(count, unit, question_id)
+                    total_score += points
+                    processed_freq_questions.add(question_id)
+                    log.debug(f"M5 Calc: Added score {points} for frequency question {question_id} (Count: {count}, Unit: '{unit}')")
+                except Exception as e:
+                    log.error(f"M5 Calc: Error processing frequency data for {question_id}: {e}")
+            else:
+                log.warning(f"M5 Calc: Missing or invalid frequency data ({freq_key}) for question {question_id} where score was None. Assuming 0 points.")
 
-    # 4.5.13 (Arztbesuche) - Key 5.4.1
-    count, unit = get_freq_data(answers, '5.4.1')
-    if count > epsilon:
-        if unit == 'pro woche': base_points_p3_4 += count * 4.3
-        elif unit == 'pro monat': base_points_p3_4 += count * 2.0
+    # Optional: Add checks for frequency questions that might not have been processed
+    # (e.g., if a freq question definition exists but wasn't in module_5_answers)
 
-    # 4.5.14 (Besuche < 3h) - Key 5.4.2
-    count, unit = get_freq_data(answers, '5.4.2')
-    if count > epsilon:
-        if unit == 'pro woche': base_points_p3_4 += count * 4.3
-        elif unit == 'pro monat': base_points_p3_4 += count * 2.0
-
-    # 4.5.15 (Besuche > 3h) - Key 5.4.3
-    count, unit = get_freq_data(answers, '5.4.3')
-    if count > epsilon:
-        if unit == 'pro woche': base_points_p3_4 += count * 4.3
-        elif unit == 'pro monat': base_points_p3_4 += count * 1.0
-
-    # 4.5.K (Frühförderung) - Add if you implement this, e.g., key '5.4.K'
-    # count, unit = get_freq_data(answers, '5.4.K')
-    # if count > epsilon:
-    #     if unit == 'pro woche': base_points_p3_4 += count * 4.3
-    #     elif unit == 'pro monat': base_points_p3_4 += count * 1.0
-
-    # --- Map sum of base points to final points for this section ---
-    points_part3_4 = 0.0
-    if base_points_p3_4 >= (60.0 - epsilon):
-        points_part3_4 = 6.0
-    elif base_points_p3_4 >= (12.9 - epsilon): # Check for 3 points
-        points_part3_4 = 3.0
-    elif base_points_p3_4 >= (8.6 - epsilon):  # Check for 2 points
-        points_part3_4 = 2.0
-    elif base_points_p3_4 >= (4.3 - epsilon):  # Check for 1 point
-        points_part3_4 = 1.0
-    # else 0 points (implicitly) - Note: BRi doesn't specify points 2-5 for this section
-
-    print(f"DEBUG M5 Part 3/4 (12-15+K): BasePointsSum={base_points_p3_4:.4f}, FinalPoints={points_part3_4:.1f}")
-
-    # --- Part 5 (Kriterium 4.5.16) ---
-    # Use the accessible get_value function
-    points_part5 = get_value(answers, '5.5.1', 'score', 0)
-    print(f"DEBUG M5 Part 5 (16): Points={points_part5}")
-
-    # --- Final Raw Score Calculation for Module 5 (Official: SUM of parts) ---
-    total_raw_score = points_part1 + points_part2 + points_part3_4 + points_part5
-
-    # --- Apply the cap for Module 5 raw score (Max raw score for M5 is 15) ---
-    # Although the official text implies the sum could exceed 15 (e.g., 3+3+6+3=15),
-    # the weighted score table only goes up to 15 raw points. We'll cap at 15.
-    final_raw_score = min(total_raw_score, 15.0)
-
-    print(f"DEBUG M5 Final: P1={points_part1}, P2={points_part2}, P3/4={points_part3_4}, P5={points_part5}, TotalRaw={total_raw_score:.2f}, FinalRaw(Capped)={final_raw_score:.2f}")
-    return final_raw_score
-# --- End Module 5 Calculation ---
+    log.debug(f"M5 Calc: Final raw score: {total_score}")
+    return total_score
 
 
-# --- Overall Score Calculation ---
 def calculate_scores(all_answers):
     """
-    Calculates raw scores, weighted scores, total score, and Pflegegrad
-    based on the answers provided for all modules.
-    'all_answers' is expected to be a dict like:
-    { '1': { '0': {'score': 1, 'text': '...'}, '1': {...}, 'notes': '...', 'visited': True }, '2': {...}, ... }
+    Calculates raw scores for each module, applies weights, and determines the total weighted score.
+    Reads the new dictionary format from session['module_answers'].
+
+    Args:
+        all_answers (dict): The dictionary containing answers for all modules.
+                            Example: {'1': {'1.1': '3', 'notes': '...'}, '2': {...}, ...}
+
+    Returns:
+        dict: A dictionary containing raw scores, weighted scores, total weighted score,
+              and potentially the calculated Pflegegrad. Returns None on critical error.
+              Example: {'raw_scores': {1: 10.0, 2: 5.0, ...},
+                        'weighted_scores': {1: 1.0, 2: 0.75, ...},
+                        'total_weighted_score': 65.5,
+                        'pflegegrad': 3}
     """
-    print(f"DEBUG Calc Scores: Input all_answers keys: {list(all_answers.keys())}")
-    results = {} # Final dictionary to return
-    raw_scores = {} # Store raw scores per module
-    weighted_scores = {} # Store weighted scores per module
+    if not isinstance(all_answers, dict):
+        log.error("Calculate Scores Error: Input 'all_answers' is not a dictionary.")
+        return None
+
+    log.debug(f"DEBUG Calc Scores: Input all_answers keys: {list(all_answers.keys())}")
+
+    raw_scores = {}
+    weighted_scores = {}
+    total_weighted_score = 0.0
 
     # --- Calculate Raw Scores for Modules 1, 2, 3, 4, 6 ---
     for module_id in [1, 2, 3, 4, 6]:
         module_id_str = str(module_id)
-        module_answers = all_answers.get(module_id_str, {}) # Get answers for this module
-        current_raw_score = 0.0
-        # Iterate through the keys in this module's answers
-        for question_key in module_answers.keys():
-            # IMPORTANT: Only sum scores from keys that represent questions
-            # Assuming question keys are stored as strings '0', '1', '2', etc.
-            # Filter out keys like 'notes', 'visited', etc.
-            if question_key.isdigit(): # Check if the key is a digit string
-                # Use the TOP-LEVEL get_score function
-                current_raw_score += get_score(module_answers, question_key, 0.0)
+        module_score = 0.0
+        module_answers = all_answers.get(module_id_str)
 
-        raw_scores[module_id_str] = current_raw_score
-        print(f"DEBUG Calc Scores: Module {module_id_str} Raw Score: {current_raw_score:.2f}")
+        if isinstance(module_answers, dict):
+            for key, value in module_answers.items():
+                # Check if key is likely a question ID and value is a score string
+                # Simple check: key contains a dot and value is a digit string
+                if '.' in key and isinstance(value, str) and value.isdigit():
+                    try:
+                        score = float(value)
+                        module_score += score
+                    except ValueError:
+                        log.warning(f"Calc M{module_id}: Invalid score value '{value}' for key '{key}'. Skipping.")
+                # Add more robust key checking if needed (e.g., using regex or checking against module definition)
+
+            # Apply point caps if defined
+            cap = MODULE_POINT_CAPS.get(module_id)
+            if cap is not None and module_score > cap:
+                log.debug(f"Calc M{module_id}: Applying point cap. Score {module_score} capped to {cap}")
+                module_score = cap
+
+            raw_scores[module_id] = round(module_score, 2)
+            log.debug(f"DEBUG Calc Scores: Module {module_id} Raw Score: {raw_scores[module_id]:.2f}")
+
+        else:
+            log.warning(f"Calculate Scores Warning: No valid answer dictionary found for Module {module_id}. Setting raw score to 0.")
+            raw_scores[module_id] = 0.0
+
 
     # --- Calculate Raw Score for Module 5 ---
-    module5_answers = all_answers.get('5', {})
-    # Check if module 5 has answers before calculating
-    if module5_answers:
-        raw_scores['5'] = calculate_module5_raw_score(module5_answers)
+    module_5_answers = all_answers.get('5')
+    if isinstance(module_5_answers, dict):
+        raw_scores[5] = round(calculate_module_5_score_official(module_5_answers), 2)
+        # Apply point cap for M5 if defined
+        cap = MODULE_POINT_CAPS.get(5)
+        if cap is not None and raw_scores[5] > cap:
+             log.debug(f"Calc M5: Applying point cap. Score {raw_scores[5]} capped to {cap}")
+             raw_scores[5] = cap
+        log.debug(f"DEBUG Calc Scores: Module 5 Raw Score: {raw_scores[5]:.2f}")
     else:
-        raw_scores['5'] = 0.0 # Default if no answers for M5
-    print(f"DEBUG Calc Scores: Module 5 Raw Score: {raw_scores['5']:.2f}")
+        log.warning("Calculate Scores Warning: No valid answer dictionary found for Module 5. Setting raw score to 0.")
+        raw_scores[5] = 0.0
 
-    # --- Map Raw Scores to Weighted Scores ---
-    for module_id_str, raw_score in raw_scores.items():
-        if module_id_str in weighted_score_mapping_tables:
-            mapping_table = weighted_score_mapping_tables[module_id_str]
-            # Ensure raw_score is capped before mapping if necessary (M5 cap is inside its function)
-            current_weighted = map_raw_to_weighted_score(raw_score, mapping_table)
-            weighted_scores[module_id_str] = current_weighted
-            print(f"DEBUG Calc Scores: Module {module_id_str} Weighted Score: {current_weighted:.2f}")
-        else:
-             # Should not happen with current tables, but good practice
-             weighted_scores[module_id_str] = 0.0
-             print(f"DEBUG Calc Scores: WARNING - No mapping table found for Module {module_id_str}")
 
-    # --- Handle Special Case: Combine Modules 2 and 3 ---
-    # Use the weighted scores already calculated
-    weighted_m2 = weighted_scores.get('2', 0.0)
-    weighted_m3 = weighted_scores.get('3', 0.0)
-    # The higher weighted score between M2 and M3 contributes to the total
-    combined_m2_m3_weighted = max(weighted_m2, weighted_m3)
-    print(f"DEBUG Calc Scores: Combined M2/M3 Weighted (Max of {weighted_m2:.2f}, {weighted_m3:.2f}): {combined_m2_m3_weighted:.2f}")
+    # --- Combine Scores for M2 and M3 before weighting ---
+    # According to NBA, M2 and M3 are combined, and the higher score determines the points for this combined area.
+    score_m2 = raw_scores.get(2, 0.0)
+    score_m3 = raw_scores.get(3, 0.0)
+    combined_m2_m3_score = max(score_m2, score_m3)
+    log.debug(f"DEBUG Calc Scores: Combined M2/M3 score (using max): {combined_m2_m3_score:.2f} (M2: {score_m2}, M3: {score_m3})")
 
-    # --- Calculate Total Weighted Score ---
-    # Sum weighted scores from M1, M4, M5, M6, and the combined M2/M3 score
-    total_weighted = (
-        weighted_scores.get('1', 0.0) +
-        combined_m2_m3_weighted +
-        weighted_scores.get('4', 0.0) +
-        weighted_scores.get('5', 0.0) +
-        weighted_scores.get('6', 0.0)
-    )
-    print(f"DEBUG Calc Scores: Total Weighted Score: {total_weighted:.2f}")
+    # --- Calculate Weighted Scores ---
+    try:
+        # Module 1
+        weighted_scores[1] = raw_scores.get(1, 0.0) * MODULE_WEIGHTS[1]
+        total_weighted_score += weighted_scores[1]
 
-    # --- Determine Pflegegrad ---
-    pflegegrad = calculate_pflegegrad(total_weighted)
-    print(f"DEBUG Calc Scores: Calculated Pflegegrad: {pflegegrad}")
+        # Combined Module 2/3
+        # Use the weight defined for M2 (or M3, should be the same)
+        weighted_scores[23] = combined_m2_m3_score * MODULE_WEIGHTS[2] # Using M2's weight for the combined score
+        total_weighted_score += weighted_scores[23]
 
-    # --- Structure Final Results ---
-    # Store results in the format expected by the /results route template
+        # Module 4
+        weighted_scores[4] = raw_scores.get(4, 0.0) * MODULE_WEIGHTS[4]
+        total_weighted_score += weighted_scores[4]
+
+        # Module 5 - Handled differently, often involves selecting highest score from M5 or M1/M4 etc.
+        # Placeholder: Simple weighting (adjust based on actual NBA rules for incorporating M5)
+        # The official calculation might involve comparing M5 score with others.
+        # For now, just apply its weight directly for demonstration.
+        weighted_scores[5] = raw_scores.get(5, 0.0) * MODULE_WEIGHTS[5]
+        total_weighted_score += weighted_scores[5] # Adjust this based on rules!
+
+        # Module 6
+        weighted_scores[6] = raw_scores.get(6, 0.0) * MODULE_WEIGHTS[6]
+        total_weighted_score += weighted_scores[6]
+
+    except KeyError as e:
+        log.error(f"Calculate Scores Error: Missing weight in MODULE_WEIGHTS for key {e}.")
+        return None
+    except Exception as e:
+        log.error(f"Calculate Scores Error during weighting: {e}")
+        return None
+
+
+    # --- Final Results ---
+    final_total_score = round(total_weighted_score, 2)
+    log.debug(f"DEBUG Calc Scores: Final Total Weighted Score: {final_total_score:.2f}")
+
+    # Determine Pflegegrad
+    pflegegrad = determine_pflegegrad(final_total_score)
+    log.debug(f"DEBUG Calc Scores: Determined Pflegegrad: {pflegegrad}")
+
     results = {
-        'module_scores': {}, # Store individual module raw/weighted scores
-        'total_weighted': round(total_weighted, 2),
+        'raw_scores': raw_scores,
+        'weighted_scores': weighted_scores, # Contains combined M2/M3 score under key 23
+        'total_weighted_score': final_total_score,
         'pflegegrad': pflegegrad,
-        'combined_m2_m3_weighted': round(combined_m2_m3_weighted, 2) # Store this for potential display
+        'combined_m2_m3_raw': combined_m2_m3_score # Add combined raw score for display if needed
+    }
+    return results
+
+
+def determine_pflegegrad(total_weighted_score):
+    """Determines the Pflegegrad based on the total weighted score."""
+    log.debug(f"DEBUG Determine PG: Input score: {total_weighted_score}")
+    if not SCORE_TO_PFLEGEGRAD:
+        log.error("SCORE_TO_PFLEGEGRAD not loaded or empty. Cannot determine Pflegegrad.")
+        return 0 # Default to 0 if config is missing
+
+    # Iterate through thresholds (keys of the dict) sorted descending
+    # The keys are the *minimum* score required for that grade
+    for score_threshold, pg in sorted(SCORE_TO_PFLEGEGRAD.items(), reverse=True):
+        # !!! REMOVE the old unpacking line like: min_score, max_score = score_threshold !!!
+
+        # Correct comparison: Check if the score meets or exceeds the threshold
+        if total_weighted_score >= score_threshold:
+            log.info(f"DEBUG Determine PG: Score {total_weighted_score} >= threshold {score_threshold} -> PG {pg}")
+            return pg # Return the corresponding Pflegegrad
+
+    # If the score is below the lowest threshold (e.g., 12.5)
+    log.info(f"DEBUG Determine PG: Score {total_weighted_score} is below lowest threshold -> PG 0")
+    return 0 # Default to Pflegegrad 0
+
+def get_total_weighted_score(results):
+    """
+    Safely retrieves the total weighted score from the results dictionary.
+    """
+    if isinstance(results, dict):
+        return results.get('total_weighted_score', 0.0)
+    return 0.0
+
+# Example usage (for testing purposes)
+if __name__ == '__main__':
+    # Example test data mimicking session structure
+    test_answers = {
+        '1': {'1.1': '3', '1.2': '1', '1.3': '0', '1.4': '1', '1.5': '3', '1.6': '0', '1.7': '1', '1.8': '1', '1.9': '0', '1.10': '1', 'notes': 'M1 notes'},
+        '2': {'2.1': '1', '2.2': '3', '2.3': '0', 'notes': 'M2 notes'},
+        '3': {'3.1': '5', '3.2': '3', '3.3': '1', '3.4': '0', '3.5': '1', '3.6': '0', '3.7': '1', '3.8': '0', '3.9': '1', '3.10': '0', '3.11': '1', '3.12': '0', '3.13': '1', 'notes': 'M3 notes'},
+        '4': {'4.1': '1', '4.2': '1', '4.3': '3', '4.4': '0', '4.5': '1', '4.6': '0', '4.7': '1', '4.8': '3', '4.9': '0', '4.10': '1', '4.11': '0', '4.12': '1', '4.13': '0', '4.14': '1', '4.15': '0', '4.16': '1', 'notes': 'M4 notes'},
+        '5': {'5.1.1': None, '5.1.1_freq': {'count': '2', 'unit': 'pro Tag'}, '5.1.2': None, '5.1.2_freq': {'count': '5', 'unit': 'pro Woche'}, '5.1.3': None, '5.1.3_freq': {'count': '1', 'unit': 'pro Monat'}, '5.1.4': None, '5.1.4_freq': {'count': '0', 'unit': 'pro Tag'}, '5.5.1': '1', 'notes': 'M5 notes'}, # Example M5
+        '6': {'6.1': '1', '6.2': '0', '6.3': '1', '6.4': '0', '6.5': '1', '6.6': '0', '6.7': '1', '6.8': '0', 'notes': 'M6 notes'}
     }
 
-    # Populate individual module scores
-    for mod_id_str in raw_scores.keys():
-        results['module_scores'][mod_id_str] = {
-            'raw': round(raw_scores.get(mod_id_str, 0.0), 2),
-            'weighted': round(weighted_scores.get(mod_id_str, 0.0), 2)
-        }
+    # --- !!! IMPORTANT: Define MODULE_POINT_CAPS if needed for testing !!! ---
+    MODULE_POINT_CAPS = {
+    1: 10,  # Example cap for Module 1
+    2: 15,  # Example cap for Module 2
+    3: 15,  # Example cap for Module 3
+    4: 40,  # Example cap for Module 4
+    5: 20,  # Example cap for Module 5
+    6: 15   # !!! ADD THIS LINE (adjust value if needed) !!!
+}
 
-    # Add the combined M2/M3 weighted score explicitly if needed for display logic
-    # results['module_scores']['2_3_combined_weighted'] = round(combined_m2_m3_weighted, 2)
+    calculation_results = calculate_scores(test_answers)
 
-    print(f"DEBUG Calc Scores: Final results dictionary: {results}")
-    return results
-# --- End Overall Score Calculation ---
+    if calculation_results:
+        print("\n--- Calculation Results ---")
+        print(f"Raw Scores: {calculation_results.get('raw_scores')}")
+        print(f"Weighted Scores: {calculation_results.get('weighted_scores')}")
+        print(f"Total Weighted Score: {calculation_results.get('total_weighted_score')}")
+        print(f"Determined Pflegegrad: {calculation_results.get('pflegegrad')}")
+        print(f"Combined M2/M3 Raw Score: {calculation_results.get('combined_m2_m3_raw')}")
+    else:
+        print("\nCalculation failed.")
